@@ -1,0 +1,9 @@
+<launch>
+  <node ns="webcam_left" pkg="uvc_camera" type="uvc_camera_node" name="uvc_camera" output="screen">
+    <param name="width" type="int" value="640" />
+    <param name="height" type="int" value="360" />
+    <param name="fps" type="int" value="60" />
+    <param name="frame" type="string" value="webcam" />
+    <param name="device" type="string" value="/dev/video0" />
+  </node>
+</launch>
