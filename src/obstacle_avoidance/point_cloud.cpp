@@ -7,6 +7,7 @@
 #include <image_transport/image_transport.h>
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/PointCloud.h>
+#include <sensor_msgs/LaserScan.h>
 #include <sensor_msgs/ChannelFloat32.h>
 #include <geometry_msgs/Point32.h>
 #include <pcl_conversions/pcl_conversions.h>
@@ -37,6 +38,7 @@ cv::Mat lmapx, lmapy, rmapx, rmapy;
 Mat leftdisp, rightdisp;
 image_transport::Publisher disp_pub;
 ros::Publisher pcl_publisher;
+ros::Publisher obstacle_scan_publisher;
 
 int save_count = 1;
 
@@ -44,21 +46,58 @@ Size rawimsize;
 Size cropped_imsize;
 int im_width = 270;
 int im_height = 180;
+const int INF = 1e9;
 
-void publishPointCloud() {
-  double fov = 70.;
-  int bin_size = 200;
+void publishObstacleScan(vector< Point3d > points) {
+  double fov = 72.;
+  int bin_size = 72;
   double min_angle = 400, max_angle = -400;
+  double range_min = INF, range_max = -500;
   double scan[bin_size];
   Point3d closest_pt[bin_size];
-  vector< Point3d > points;
+  sensor_msgs::LaserScan obstacle_scan;
+  obstacle_scan.header.frame_id = "map";
+  obstacle_scan.header.stamp = ros::Time();
   for (int i = 0; i < bin_size; i++) {
-    scan[i] = 1e9;
+    scan[i] = INF;
   }
+  for (int i = 0; i < points.size(); i++) {
+    if (points[i].z < 0.04 && points[i].z > -0.04)
+      continue;
+    double theta_rad = atan2(points[i].y, points[i].x);
+    double theta_deg = theta_rad * 180. / 3.1415;
+    min_angle = min(min_angle, theta_rad);
+    max_angle = max(max_angle, theta_rad);
+    double r = sqrt(points[i].y*points[i].y + points[i].x*points[i].x);
+    range_max = max(range_max, r);
+    range_min = min(range_min, r);
+    int j = floor((double)bin_size * (fov / 2. - theta_deg) / fov);
+    if (r < scan[j]) {
+      scan[j] = r;
+      closest_pt[j] = points[i];
+    }
+  }
+  obstacle_scan.angle_min = min_angle;
+  obstacle_scan.angle_max = max_angle;
+  obstacle_scan.range_min = range_min;
+  obstacle_scan.range_max = range_max;
+  obstacle_scan.angle_increment = 3.1415 / 180.;
+  obstacle_scan.scan_time = 0.001;
+  obstacle_scan.time_increment = 0.1;
+  for (int i = bin_size-1; i >= 0; i--) {
+    if (scan[i] < INF) {
+      obstacle_scan.ranges.push_back(scan[i]);
+    }
+  }
+  obstacle_scan_publisher.publish(obstacle_scan);
+}
+
+void publishPointCloud() {
+  vector< Point3d > points;
   sensor_msgs::PointCloud pc;
   sensor_msgs::ChannelFloat32 ch;
   ch.name = "rgb";
-  pc.header.frame_id = "point_cloud";
+  pc.header.frame_id = "map";
   pc.header.stamp = ros::Time();
   for (int i = 0; i < show.cols; i++) {
     for (int j = 0; j < show.rows; j++) {
@@ -78,6 +117,8 @@ void publishPointCloud() {
       point3d_cam.at<double>(1,0) = Y;
       point3d_cam.at<double>(2,0) = Z;
       Mat point3d_robot = XR * point3d_cam + XT;
+      if (point3d_robot.at<double>(2,0) > 0.34 || point3d_robot.at<double>(2,0) < -0.1)
+        continue;
       points.push_back(Point3d(point3d_robot));
       geometry_msgs::Point32 pt;
       pt.x = point3d_robot.at<double>(0,0);
@@ -101,23 +142,7 @@ void publishPointCloud() {
   }
   pc.channels.push_back(ch);
   pcl_publisher.publish(pc);
-  /*
-  for (int i = 0; i < points.size(); i++) {
-    if (points[i].z < 0.1 && points[i].z > -0.1)
-      continue;
-    double theta = atan2(points[i].y, points[i].x) * 180. / 3.1415;
-    double r = sqrt(points[i].y*points[i].y + points[i].x*points[i].x);
-    int j = floor((double)bin_size * (fov / 2. - theta) / fov);
-    if (r < scan[j]) {
-      scan[j] = r;
-      closest_pt[j] = points[i];
-    }
-    if (r < 1) {
-      cout << r << endl;
-      cout << "Obstacle closer than 50cms." << endl;
-    }
-  }
-  */
+  publishObstacleScan(points);
 }
 
 void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
@@ -234,7 +259,8 @@ int main(int argc, char **argv)
   image_transport::ImageTransport it(nh);
   disp_pub = it.advertise("/webcam_left/depth_map", 10);
   pcl_publisher = nh.advertise<sensor_msgs::PointCloud>("/webcam_left/point_cloud", 10);
-  
+  obstacle_scan_publisher = nh.advertise<sensor_msgs::LaserScan>("/webcam_left/obstacle_scan", 10);
+
   cv::namedWindow("view_left");
   cv::namedWindow("view_right");
   cv::namedWindow("view_disp");
