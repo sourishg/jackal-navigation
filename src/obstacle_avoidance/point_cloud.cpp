@@ -48,9 +48,66 @@ int im_width = 270;
 int im_height = 180;
 const int INF = 1e9;
 
-const float gp_height_thresh = 0.06;
-const float gp_angle_thresh = 2. * 3.1415 / 180.;
-const float gp_dist_thresh = 1.;
+const double gp_height_thresh = 0.1;
+const double gp_angle_thresh = 5. * 3.1415 / 180.;
+const double gp_dist_thresh = 1.;
+
+deque< vector< Point3d > > pcls;
+deque< Mat > dmaps;
+
+vector< Point3d > getfilteredPointCloud() {
+  double error_thresh = 0.4;
+  vector< Point3d > filtered_pts;
+  filtered_pts.resize(im_width * im_height);
+  for (int i = 0; i < im_width * im_height; i++) {
+    deque< vector< Point3d > >::iterator it;
+    vector< Point3d > check_pts;
+    for (it = pcls.begin(); it != pcls.end(); it++) {
+      check_pts.push_back((*it)[i]);
+    }
+    double sum_error = 0.;
+    int n = check_pts.size();
+    int count = 0;
+    double X = 0, Y = 0, Z = 0;
+    for (int j = 0; j < n; j++) {
+      if (check_pts[j].x == -1) {
+        continue;
+      }
+      X += check_pts[j].x;
+      Y += check_pts[j].y;
+      Z += check_pts[j].z;
+      count++;
+    }
+    if (count == 0) {
+      filtered_pts[i] = check_pts[n-1];
+      continue;
+    }
+    X /= count;
+    Y /= count;
+    Z /= count;
+    filtered_pts[i] = Point3d(X, Y, Z);
+  }
+  return filtered_pts;
+}
+
+/*
+void filterDisparityMap() {
+  Mat filtered_map = Mat(im_height, im_width, CV_8UC1, Scalar(0));
+  for (int i = 0; i < im_width; i++) {
+    for (int j = 0; j < im_height; j++) {
+      deque< Mat >::iterator it;
+      int val = 0;
+      for (it = dmaps.begin(); it != dmaps.end(); it++) {
+        val += (*it).at<uchar>(j,i);
+      }
+      val /= (int)dmaps.size();
+      filtered_map.at<uchar>(j,i) = val;
+    }
+  }
+  dmaps.pop_back();
+  dmaps.push_back(filtered_map);
+}
+*/
 
 void publishObstacleScan(vector< Point3d > points) {
   double fov = 72.;
@@ -66,6 +123,8 @@ void publishObstacleScan(vector< Point3d > points) {
     scan[i] = INF;
   }
   for (int i = 0; i < points.size(); i++) {
+    if (points[i].x == -1)
+      continue;
     if (points[i].x < gp_dist_thresh) {
       if (points[i].z < gp_height_thresh)
         continue;
@@ -101,7 +160,7 @@ void publishObstacleScan(vector< Point3d > points) {
   obstacle_scan_publisher.publish(obstacle_scan);
 }
 
-void publishPointCloud() {
+void publishPointCloud(Mat& show) {
   vector< Point3d > points;
   sensor_msgs::PointCloud pc;
   sensor_msgs::ChannelFloat32 ch;
@@ -111,8 +170,10 @@ void publishPointCloud() {
   for (int i = 0; i < show.cols; i++) {
     for (int j = 0; j < show.rows; j++) {
       int d = show.at<uchar>(j,i);
-      if (d < 5)
+      if (d < 2) {
+        points.push_back(Point3d(-1, -1, -1));
         continue;
+      }
       V.at<double>(0,0) = (double)i;
       V.at<double>(1,0) = (double)j;
       V.at<double>(2,0) = (double)d;
@@ -126,13 +187,32 @@ void publishPointCloud() {
       point3d_cam.at<double>(1,0) = Y;
       point3d_cam.at<double>(2,0) = Z;
       Mat point3d_robot = XR * point3d_cam + XT;
-      if (point3d_robot.at<double>(2,0) > 0.34 || point3d_robot.at<double>(2,0) < 0.)
+      if (point3d_robot.at<double>(2,0) > 0.34 || point3d_robot.at<double>(2,0) < 0.) {
+        points.push_back(Point3d(-1, -1, -1));
         continue;
+      }
       points.push_back(Point3d(point3d_robot));
+    }
+  }
+  /*
+  if (pcls.size() < 5) {
+    pcls.push_back(points);
+  } else {
+    pcls.pop_front();
+    pcls.push_back(points);
+    points = getfilteredPointCloud();
+  }
+  */
+  int pts_idx = 0;
+  for (int i = 0; i <  im_width; i++) {
+    for (int j = 0; j < im_height; j++) {
       geometry_msgs::Point32 pt;
-      pt.x = point3d_robot.at<double>(0,0);
-      pt.y = point3d_robot.at<double>(1,0);
-      pt.z = point3d_robot.at<double>(2,0);
+      pt.x = points[pts_idx].x;
+      pt.y = points[pts_idx].y;
+      pt.z = points[pts_idx].z;
+      pts_idx++;
+      if (pt.x == -1)
+        continue;
       pc.points.push_back(pt);
       int32_t red, blue, green;
       if (pt.x < gp_dist_thresh) {
@@ -219,10 +299,26 @@ void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
     
     show = Mat(180, 270, CV_8UC1, Scalar(0));
     leftdpf.convertTo(show, CV_8U, 1.);
+    /*
+    if (dmaps.size() < 2) {
+      dmaps.push_back(show);
+    } else {
+      dmaps.pop_front();
+      dmaps.push_back(show);
+      filterDisparityMap();
+    }
+    */
     if (!show.empty()) {
-      sensor_msgs::ImagePtr disp_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", show).toImageMsg();
+      sensor_msgs::ImagePtr disp_msg;
+      //if (dmaps.size() < 2)
+      disp_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", show).toImageMsg();
+      //else
+      //disp_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", dmaps.back()).toImageMsg();
       disp_pub.publish(disp_msg);
-      publishPointCloud();
+      //if (dmaps.size() < 2)
+      publishPointCloud(show);
+      //else
+      //publishPointCloud(dmaps.back());
       //imshow("view_disp", show);
     }
     /*
@@ -281,9 +377,9 @@ int main(int argc, char **argv)
   pcl_publisher = nh.advertise<sensor_msgs::PointCloud>("/webcam_left/point_cloud", 10);
   obstacle_scan_publisher = nh.advertise<sensor_msgs::LaserScan>("/webcam_left/obstacle_scan", 10);
 
-  cv::namedWindow("view_left");
-  cv::namedWindow("view_right");
-  cv::namedWindow("view_disp");
+  //cv::namedWindow("view_left");
+  //cv::namedWindow("view_right");
+  //cv::namedWindow("view_disp");
 
   cv::FileStorage fs1("/home/sourish/catkin_ws/src/jackal_nav/src/calibration/stereo_calib.yml", cv::FileStorage::READ);
   fs1["K1"] >> K1;
@@ -317,7 +413,7 @@ int main(int argc, char **argv)
   ros::Subscriber subr = nh.subscribe("/webcam_right/image_raw/compressed", 10, imageCallbackRight);
   
   ros::spin();
-  cv::destroyWindow("view_left");
-  cv::destroyWindow("view_right");
-  cv::destroyWindow("view_disp");
+  //cv::destroyWindow("view_left");
+  //cv::destroyWindow("view_right");
+  //cv::destroyWindow("view_disp");
 }
