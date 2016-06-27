@@ -48,6 +48,10 @@ int im_width = 270;
 int im_height = 180;
 const int INF = 1e9;
 
+const float gp_height_thresh = 0.06;
+const float gp_angle_thresh = 2. * 3.1415 / 180.;
+const float gp_dist_thresh = 1.;
+
 void publishObstacleScan(vector< Point3d > points) {
   double fov = 72.;
   int bin_size = 72;
@@ -62,8 +66,13 @@ void publishObstacleScan(vector< Point3d > points) {
     scan[i] = INF;
   }
   for (int i = 0; i < points.size(); i++) {
-    if (points[i].z < 0.06 && points[i].z > -0.06)
-      continue;
+    if (points[i].x < gp_dist_thresh) {
+      if (points[i].z < gp_height_thresh)
+        continue;
+    } else {
+      if (points[i].z < gp_height_thresh + tan(gp_angle_thresh) * (points[i].x - gp_dist_thresh))
+        continue;
+    }
     double theta_rad = atan2(points[i].y, points[i].x);
     double theta_deg = theta_rad * 180. / 3.1415;
     min_angle = min(min_angle, theta_rad);
@@ -117,7 +126,7 @@ void publishPointCloud() {
       point3d_cam.at<double>(1,0) = Y;
       point3d_cam.at<double>(2,0) = Z;
       Mat point3d_robot = XR * point3d_cam + XT;
-      if (point3d_robot.at<double>(2,0) > 0.34 || point3d_robot.at<double>(2,0) < -0.01)
+      if (point3d_robot.at<double>(2,0) > 0.34 || point3d_robot.at<double>(2,0) < 0.)
         continue;
       points.push_back(Point3d(point3d_robot));
       geometry_msgs::Point32 pt;
@@ -126,15 +135,26 @@ void publishPointCloud() {
       pt.z = point3d_robot.at<double>(2,0);
       pc.points.push_back(pt);
       int32_t red, blue, green;
-      
-      if (pt.z < 0.06 && pt.z > -0.06) {
-        red = 0;
-        blue = 0;
-        green = 255;
+      if (pt.x < gp_dist_thresh) {
+        if (pt.z < gp_height_thresh) {
+          red = 0;
+          blue = 0;
+          green = 255;
+        } else {
+          red = leftim_res.at<Vec3b>(j,i)[2];
+          green = leftim_res.at<Vec3b>(j,i)[1];
+          blue = leftim_res.at<Vec3b>(j,i)[0];
+        }
       } else {
-        red = leftim_res.at<Vec3b>(j,i)[2];
-        green = leftim_res.at<Vec3b>(j,i)[1];
-        blue = leftim_res.at<Vec3b>(j,i)[0];
+        if (pt.z < gp_height_thresh + tan(gp_angle_thresh) * (pt.x - gp_dist_thresh)) {
+          red = 0;
+          blue = 0;
+          green = 255;
+        } else {
+          red = leftim_res.at<Vec3b>(j,i)[2];
+          green = leftim_res.at<Vec3b>(j,i)[1];
+          blue = leftim_res.at<Vec3b>(j,i)[0];
+        } 
       }
       int32_t rgb = (red << 16 | green << 8 | blue);
       ch.values.push_back(*reinterpret_cast<float*>(&rgb));
