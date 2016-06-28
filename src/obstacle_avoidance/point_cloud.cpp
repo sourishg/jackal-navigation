@@ -22,6 +22,7 @@
 #include <pcl/console/parse.h>
 #include <pcl/features/normal_3d.h>
 #include <pcl/features/normal_3d_omp.h>
+#include <visualization_msgs/Marker.h>
 #include "elas.h"
 #include "image.h"
 
@@ -39,6 +40,7 @@ Mat leftdisp, rightdisp;
 image_transport::Publisher disp_pub;
 ros::Publisher pcl_publisher;
 ros::Publisher obstacle_scan_publisher;
+ros::Publisher marker_pub;
 
 int save_count = 1;
 
@@ -109,6 +111,38 @@ void filterDisparityMap() {
 }
 */
 
+void visualizeCriticalRegion() {
+  visualization_msgs::Marker line_strip;
+  line_strip.header.frame_id = "map";
+  line_strip.header.stamp = ros::Time::now();
+  line_strip.ns = "jackal_obstacle_avoidance";
+  line_strip.action = visualization_msgs::Marker::ADD;
+  line_strip.pose.orientation.w = 1.0;
+  line_strip.id = 0;
+  line_strip.type = visualization_msgs::Marker::LINE_STRIP;
+  line_strip.scale.x = 0.1;
+  line_strip.color.b = 1.0;
+  line_strip.color.a = 1.0;
+  geometry_msgs::Point p;
+  p.x = 0.23;
+  p.y = 0.2;
+  p.z = 0;
+  line_strip.points.push_back(p);
+  p.x = 1.23;
+  p.y = 0.2;
+  p.z = 0;
+  line_strip.points.push_back(p);
+  p.x = 1.23;
+  p.y = -0.2;
+  p.z = 0;
+  line_strip.points.push_back(p);
+  p.x = 0.23;
+  p.y = -0.2;
+  p.z = 0;
+  line_strip.points.push_back(p);
+  marker_pub.publish(line_strip);
+}
+
 void publishObstacleScan(vector< Point3d > points) {
   double fov = 72.;
   int bin_size = 72;
@@ -118,7 +152,7 @@ void publishObstacleScan(vector< Point3d > points) {
   Point3d closest_pt[bin_size];
   sensor_msgs::LaserScan obstacle_scan;
   obstacle_scan.header.frame_id = "map";
-  obstacle_scan.header.stamp = ros::Time();
+  obstacle_scan.header.stamp = ros::Time::now();
   for (int i = 0; i < bin_size; i++) {
     scan[i] = INF;
   }
@@ -166,7 +200,7 @@ void publishPointCloud(Mat& show) {
   sensor_msgs::ChannelFloat32 ch;
   ch.name = "rgb";
   pc.header.frame_id = "map";
-  pc.header.stamp = ros::Time();
+  pc.header.stamp = ros::Time::now();
   for (int i = 0; i < show.cols; i++) {
     for (int j = 0; j < show.rows; j++) {
       int d = show.at<uchar>(j,i);
@@ -321,6 +355,7 @@ void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
       //publishPointCloud(dmaps.back());
       //imshow("view_disp", show);
     }
+    visualizeCriticalRegion();
     /*
     if (cv::waitKey(30) > 0) {
       printf("Saving scene!\n");
@@ -370,12 +405,13 @@ void imageCallbackRight(const sensor_msgs::CompressedImageConstPtr& msg)
 
 int main(int argc, char **argv)
 {
-  ros::init(argc, argv, "image_listener_left");
+  ros::init(argc, argv, "jackal_obstacle_avoidance");
   ros::NodeHandle nh;
   image_transport::ImageTransport it(nh);
   disp_pub = it.advertise("/webcam_left/depth_map", 10);
   pcl_publisher = nh.advertise<sensor_msgs::PointCloud>("/webcam_left/point_cloud", 10);
   obstacle_scan_publisher = nh.advertise<sensor_msgs::LaserScan>("/webcam_left/obstacle_scan", 10);
+  marker_pub = nh.advertise<visualization_msgs::Marker>("visualization_marker", 10);
 
   //cv::namedWindow("view_left");
   //cv::namedWindow("view_right");
