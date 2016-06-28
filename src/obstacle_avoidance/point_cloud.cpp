@@ -234,7 +234,7 @@ void publishPointCloud(Mat& show) {
           red = leftim_res.at<Vec3b>(j,i)[2];
           green = leftim_res.at<Vec3b>(j,i)[1];
           blue = leftim_res.at<Vec3b>(j,i)[0];
-        } 
+        }
       }
       int32_t rgb = (red << 16 | green << 8 | blue);
       ch.values.push_back(*reinterpret_cast<float*>(&rgb));
@@ -265,17 +265,17 @@ void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
     if(rightim.channels()==3)cvtColor(rightim_res,rb,CV_BGR2GRAY);
     else rb=rightim_res;
     int bd = 0;
-    
+
     const cv::Size imsize = lb.size();
     const int32_t dims[3] = {imsize.width,imsize.height,imsize.width}; // bytes per line = width
 
     cv::Mat leftdpf = cv::Mat::zeros(imsize,CV_32F);
     cv::Mat rightdpf = cv::Mat::zeros(imsize,CV_32F);
-    
+
     Elas::parameters param;
     param.postprocess_only_left = false;
     Elas elas(param);
-    
+
     elas.process(lb.data,rb.data,leftdpf.ptr<float>(0),rightdpf.ptr<float>(0),dims);
     //Mat disp;
     //Mat(leftdpf(cv::Rect(bd,0,leftim.cols,leftim.rows))).copyTo(disp);
@@ -284,7 +284,7 @@ void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
     //Mat(rightdpf(cv::Rect(bd,0,leftim.cols,leftim.rows))).copyTo(disp);
     //rightdpf.copyTo(disp);
     //disp.convertTo(rightdisp,CV_16S,16);
-    
+
     int max_disp = -1;
     for (int i = 0; i < im_width; i++) {
       for (int j = 0; j < im_height; j++) {
@@ -296,7 +296,7 @@ void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
         leftdpf.at<uchar>(j,i) = (int)max(255.0*(float)leftdpf.at<uchar>(j,i)/max_disp,0.0);
       }
     }
-    
+
     show = Mat(180, 270, CV_8UC1, Scalar(0));
     leftdpf.convertTo(show, CV_8U, 1.);
     /*
@@ -408,10 +408,10 @@ int main(int argc, char **argv)
   cv::initUndistortRectifyMap(K1, D1, R1, P1, img1.size(), CV_32F, lmapx, lmapy);
   cv::initUndistortRectifyMap(K2, D2, R2, P2, img2.size(), CV_32F, rmapx, rmapy);
 
-  cv::startWindowThread();
+  //cv::startWindowThread();
   ros::Subscriber subl = nh.subscribe("/webcam_left/image_raw/compressed", 10, imageCallbackLeft);
   ros::Subscriber subr = nh.subscribe("/webcam_right/image_raw/compressed", 10, imageCallbackRight);
-  
+
   ros::spin();
   //cv::destroyWindow("view_left");
   //cv::destroyWindow("view_right");
