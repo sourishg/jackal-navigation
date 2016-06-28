@@ -205,9 +205,9 @@ include_directories("${LIBELAS_SRC_DIR}")
 # sources
 FILE(GLOB LIBELAS_SRC_FILES "src/elas/*.cpp")
 
-add_executable(disparity_videocapture ${LIBELAS_SRC_FILES} src/obstacle_avoidance/disparity_videocapture.cpp)
-target_link_libraries(disparity_videocapture ${catkin_LIBRARIES} ${OpenCV_LIBS})
-add_dependencies(disparity_videocapture jackal_nav_generate_messages_cpp)
+add_executable(navigate ${LIBELAS_SRC_FILES} src/obstacle_avoidance/navigate.cpp)
+target_link_libraries(navigate ${catkin_LIBRARIES} ${OpenCV_LIBS})
+add_dependencies(navigate jackal_nav_generate_messages_cpp)
 
 add_executable(grab_frames src/obstacle_avoidance/grab_frames.cpp)
 target_link_libraries(grab_frames ${catkin_LIBRARIES} ${OpenCV_LIBS})

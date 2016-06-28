@@ -54,9 +54,12 @@ const double gp_height_thresh = 0.1;
 const double gp_angle_thresh = 5. * 3.1415 / 180.;
 const double gp_dist_thresh = 1.;
 
-deque< vector< Point3d > > pcls;
-deque< Mat > dmaps;
+bool inImg(int x, int y) {
+  if (x >= 0 && x < show.cols && y >= 0 && y < show.rows)
+    return true;
+}
 
+/*
 vector< Point3d > getfilteredPointCloud() {
   double error_thresh = 0.4;
   vector< Point3d > filtered_pts;
@@ -91,25 +94,30 @@ vector< Point3d > getfilteredPointCloud() {
   }
   return filtered_pts;
 }
+*/
 
-/*
-void filterDisparityMap() {
-  Mat filtered_map = Mat(im_height, im_width, CV_8UC1, Scalar(0));
+void filterDisparityMap(Mat& disp) {
+  int w = 1;
   for (int i = 0; i < im_width; i++) {
     for (int j = 0; j < im_height; j++) {
-      deque< Mat >::iterator it;
-      int val = 0;
-      for (it = dmaps.begin(); it != dmaps.end(); it++) {
-        val += (*it).at<uchar>(j,i);
+      if (disp.at<uchar>(j,i) == 0)
+        continue;
+      int val = disp.at<uchar>(j,i);
+      int count = 0;
+      for (int k = -w; k <= w; k++) {
+        for (int l = -w; l <= w; l++) {
+          if (inImg(i+k,j+l)) {
+            if (abs(val - disp.at<uchar>(i+k,j+l)) > 80) {
+              count++;
+            }
+          }
+        }
       }
-      val /= (int)dmaps.size();
-      filtered_map.at<uchar>(j,i) = val;
+      if (count > (2*w+1)*(2*w+1)/2)
+        disp.at<uchar>(j,i) = 0;
     }
   }
-  dmaps.pop_back();
-  dmaps.push_back(filtered_map);
 }
-*/
 
 void visualizeCriticalRegion() {
   visualization_msgs::Marker line_strip;
@@ -144,8 +152,8 @@ void visualizeCriticalRegion() {
 }
 
 void publishObstacleScan(vector< Point3d > points) {
-  double fov = 72.;
-  int bin_size = 72;
+  double fov = 90.;
+  int bin_size = 90;
   double min_angle = 400, max_angle = -400;
   double range_min = INF, range_max = -500;
   double scan[bin_size];
@@ -343,6 +351,7 @@ void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
     }
     */
     if (!show.empty()) {
+      filterDisparityMap(show);
       sensor_msgs::ImagePtr disp_msg;
       //if (dmaps.size() < 2)
       disp_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", show).toImageMsg();
