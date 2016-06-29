@@ -5,7 +5,9 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <cv_bridge/cv_bridge.h>
+#include <geometry_msgs/Twist.h>
 #include <sensor_msgs/LaserScan.h>
+#include <sensor_msgs/Joy.h>
 #include <visualization_msgs/Marker.h>
 
 using namespace std;
@@ -16,6 +18,9 @@ vector< double > laserScan;
 vector< double > laserAngles;
 
 ros::Publisher marker_pub;
+ros::Publisher vel_pub;
+
+double forward_vel, rot_vel;
 
 const int INF = 1e9;
 
@@ -28,7 +33,7 @@ void visualizeLaserPoints() {
   line_strip.pose.orientation.w = 1.0;
   line_strip.id = 0;
   line_strip.type = visualization_msgs::Marker::POINTS;
-  line_strip.scale.x = 0.03;
+  line_strip.scale.x = 0.02;
   line_strip.color.b = 1.0;
   line_strip.color.a = 1.0;
   for (int i = 0; i < laserPoints.size(); i++) {
@@ -40,19 +45,55 @@ void visualizeLaserPoints() {
   }
   marker_pub.publish(line_strip);
 }
-int obs = 0;
-void checkObstacle() {
+
+int checkObstacle() {
   int count = 0;
+  int laser_pt_thresh = 10;
+  int dir = 0;
+  double clear_front = 1.0;
+  double clear_side = 0.4;
   for (int i = 0; i < laserPoints.size(); i++) {    
-    if (laserPoints[i].x > 0.23 && laserPoints[i].x < 1.23
-        && laserPoints[i].y > -0.2 && laserPoints[i].y < 0.2) {
+    if (laserPoints[i].x > 0. && laserPoints[i].x < clear_front
+        && laserPoints[i].y > -clear_side && laserPoints[i].y < clear_side) {
       count++;
     }
   }
-  if (count > 10) {
-    cout << "Obstacle " << obs << endl;
-    obs++;
+  if (count > laser_pt_thresh) {
+    int left_count = 0, right_count = 0;
+    for (int i = 0; i < laserPoints.size(); i++) {    
+      if (laserPoints[i].y > 0)
+        left_count++;
+      else
+        right_count++;
+    }
+    if (right_count > left_count)
+      dir = 2;
+    else
+      dir = 1;
   }
+  return dir;
+}
+
+void safeNavigate(const sensor_msgs::JoyConstPtr& msg) {
+  int trigger = msg->buttons[9];
+  if (!trigger) 
+    return;
+  double side = msg->axes[0];
+  double front = msg->axes[1];
+  double max_forward_vel = 0.4;
+  double max_rot_vel = 1.4;
+  forward_vel = max_forward_vel * front;
+  rot_vel = max_rot_vel * side;
+  int dir = checkObstacle();
+  if (dir == 1) {
+    rot_vel = 0.8;
+  } else if (dir == 2) {
+    rot_vel = -0.8;
+  }
+  geometry_msgs::Twist vel_msg;
+  vel_msg.linear.x = forward_vel;
+  vel_msg.angular.z = rot_vel;
+  vel_pub.publish(vel_msg);
 }
 
 void laserScanCallback(const sensor_msgs::LaserScanConstPtr& msg) {
@@ -82,14 +123,15 @@ void laserScanCallback(const sensor_msgs::LaserScanConstPtr& msg) {
     }
   }
   visualizeLaserPoints();
-  checkObstacle();
 }
 
 int main(int argc, char** argv) {
   ros::init(argc, argv, "jackal_navigation");
   ros::NodeHandle nh;
   ros::Subscriber sub_laser_scan = nh.subscribe("/webcam_left/obstacle_scan", 10, laserScanCallback);
+  ros::Subscriber sub_safe_drive = nh.subscribe("/bluetooth_teleop/joy", 10, safeNavigate);
   marker_pub = nh.advertise<visualization_msgs::Marker>("visualize_laser", 10);
+  vel_pub = nh.advertise<geometry_msgs::Twist>("/jackal_velocity_controller/cmd_vel", 10);
   ros::spin();
   return 0;
 }
