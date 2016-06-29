@@ -110,6 +110,7 @@ void laserScanCallback(const sensor_msgs::LaserScanConstPtr& msg) {
   }
 
   for (int i = 0; i < msg->ranges.size(); i++) {
+    /*
     angle = ((double)(msg->ranges.size() - i)/msg->ranges.size())*(maxAngle-minAngle)+minAngle + 1.5708;
     laserAngles[i] = angle;
     if (msg->ranges[i]<=msg->range_min || msg->ranges[i]>=msg->range_max) {
@@ -121,6 +122,11 @@ void laserScanCallback(const sensor_msgs::LaserScanConstPtr& msg) {
       laserPoints[i].x = msg->ranges[i] * sin(angle) + laserScannerLocation.x;
       laserPoints[i].y = msg->ranges[i] * cos(angle) + laserScannerLocation.y;
     }
+    */
+    angle = (double)i * (maxAngle - minAngle) / (double)numPoints + minAngle;
+    laserScan[i] = msg->ranges[i];
+    laserPoints[i].x = msg->ranges[i] * cos(angle) + laserScannerLocation.x;
+    laserPoints[i].y = msg->ranges[i] * sin(angle) + laserScannerLocation.y;
   }
   visualizeLaserPoints();
 }
@@ -129,7 +135,7 @@ int main(int argc, char** argv) {
   ros::init(argc, argv, "jackal_navigation");
   ros::NodeHandle nh;
   ros::Subscriber sub_laser_scan = nh.subscribe("/webcam_left/obstacle_scan", 10, laserScanCallback);
-  ros::Subscriber sub_safe_drive = nh.subscribe("/bluetooth_teleop/joy", 10, safeNavigate);
+  //ros::Subscriber sub_safe_drive = nh.subscribe("/bluetooth_teleop/joy", 10, safeNavigate);
   marker_pub = nh.advertise<visualization_msgs::Marker>("visualize_laser", 10);
   vel_pub = nh.advertise<geometry_msgs::Twist>("/jackal_velocity_controller/cmd_vel", 10);
   ros::spin();

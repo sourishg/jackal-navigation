@@ -195,7 +195,7 @@ void publishObstacleScan(vector< Point3d > points) {
   obstacle_scan.scan_time = 0.001;
   obstacle_scan.time_increment = 0.1;
   for (int i = bin_size-1; i >= 0; i--) {
-    if (scan[i] < INF) {
+    if (scan[i] < INF-1) {
       obstacle_scan.ranges.push_back(scan[i]);
     }
   }
