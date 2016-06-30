@@ -50,7 +50,7 @@ int im_width = 270;
 int im_height = 180;
 const int INF = 1e9;
 
-const double gp_height_thresh = 0.1;
+const double gp_height_thresh = 0.06;
 const double gp_angle_thresh = 5. * 3.1415 / 180.;
 const double gp_dist_thresh = 1.;
 

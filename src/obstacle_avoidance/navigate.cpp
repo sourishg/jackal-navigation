@@ -20,7 +20,8 @@ vector< double > laserAngles;
 ros::Publisher marker_pub;
 ros::Publisher vel_pub;
 
-double forward_vel, rot_vel;
+double forward_vel = 0., rot_vel = 0.;
+int last_dir = 0;
 
 const int INF = 1e9;
 
@@ -50,8 +51,8 @@ int checkObstacle() {
   int count = 0;
   int laser_pt_thresh = 10;
   int dir = 0;
-  double clear_front = 1.0;
-  double clear_side = 0.4;
+  double clear_front = 1.7;
+  double clear_side = 0.3;
   for (int i = 0; i < laserPoints.size(); i++) {    
     if (laserPoints[i].x > 0. && laserPoints[i].x < clear_front
         && laserPoints[i].y > -clear_side && laserPoints[i].y < clear_side) {
@@ -59,17 +60,25 @@ int checkObstacle() {
     }
   }
   if (count > laser_pt_thresh) {
-    int left_count = 0, right_count = 0;
-    for (int i = 0; i < laserPoints.size(); i++) {    
-      if (laserPoints[i].y > 0)
-        left_count++;
-      else
-        right_count++;
+    /*
+    double max_angle = -100, min_angle = 100;
+    for (int i = 0; i < laserPoints.size(); i++) {
+      double angle = atan2(laserPoints[i].y, laserPoints[i].x);
+      if (laserPoints[i].x > clear_front)
+        continue;
+      max_angle = max(max_angle, angle);
+      min_angle = min(min_angle, angle);
     }
-    if (right_count > left_count)
+    if (max_angle < 0)
+      dir = 1;
+    else if (min_angle > 0)
+      dir = 2;
+    else if (abs(max_angle) > abs(min_angle))
       dir = 2;
     else
       dir = 1;
+    */
+    dir = 1;
   }
   return dir;
 }
@@ -80,16 +89,47 @@ void safeNavigate(const sensor_msgs::JoyConstPtr& msg) {
     return;
   double side = msg->axes[0];
   double front = msg->axes[1];
+  double trans_accel = 0.025;
+  double rot_accel = 0.05;
   double max_forward_vel = 0.4;
   double max_rot_vel = 1.4;
-  forward_vel = max_forward_vel * front;
-  rot_vel = max_rot_vel * side;
+  double desired_forward_vel = max_forward_vel * front;
+  double desired_rot_vel = max_rot_vel * side;
   int dir = checkObstacle();
-  if (dir == 1) {
-    rot_vel = 0.8;
-  } else if (dir == 2) {
-    rot_vel = -0.8;
+  if (dir == 1)
+    desired_rot_vel = 1.2;
+  if (desired_forward_vel < forward_vel) {
+    forward_vel = max(desired_forward_vel, forward_vel - trans_accel);
+  } else {
+    forward_vel = min(desired_forward_vel, forward_vel + trans_accel);
   }
+  if (desired_rot_vel < rot_vel) {
+    rot_vel = max(desired_rot_vel, rot_vel - rot_accel);
+  } else {
+    rot_vel = min(desired_rot_vel, rot_vel + rot_accel);
+  }
+  /*
+  if (dir == 0) {
+    last_dir = 0;
+  } else {
+    if (last_dir != 0) {
+      if (dir != last_dir) {
+        dir = last_dir;
+      }
+    }
+  }
+  if (dir == 0) cout << "Forward!" << endl;
+  else if (dir == 1) cout << "Left!" << endl;
+  else cout << "Right!" << endl;
+  if (dir == 1) {
+    forward_vel = 0.2 * front;
+    rot_vel = min(rot_vel + 0.23, max_rot_vel);
+  } else if (dir == 2) {
+    rot_vel = max(rot_vel - 0.23, -max_rot_vel);
+    forward_vel = 0.2 * front;
+  }
+  last_dir = dir;
+  */
   geometry_msgs::Twist vel_msg;
   vel_msg.linear.x = forward_vel;
   vel_msg.angular.z = rot_vel;
@@ -110,19 +150,6 @@ void laserScanCallback(const sensor_msgs::LaserScanConstPtr& msg) {
   }
 
   for (int i = 0; i < msg->ranges.size(); i++) {
-    /*
-    angle = ((double)(msg->ranges.size() - i)/msg->ranges.size())*(maxAngle-minAngle)+minAngle + 1.5708;
-    laserAngles[i] = angle;
-    if (msg->ranges[i]<=msg->range_min || msg->ranges[i]>=msg->range_max) {
-      laserScan[i] = INF;
-      laserPoints[i].x = INF;
-      laserPoints[i].y = INF;
-    } else {
-      laserScan[i] = msg->ranges[i];
-      laserPoints[i].x = msg->ranges[i] * sin(angle) + laserScannerLocation.x;
-      laserPoints[i].y = msg->ranges[i] * cos(angle) + laserScannerLocation.y;
-    }
-    */
     angle = (double)i * (maxAngle - minAngle) / (double)numPoints + minAngle;
     laserScan[i] = msg->ranges[i];
     laserPoints[i].x = msg->ranges[i] * cos(angle) + laserScannerLocation.x;
@@ -135,7 +162,7 @@ int main(int argc, char** argv) {
   ros::init(argc, argv, "jackal_navigation");
   ros::NodeHandle nh;
   ros::Subscriber sub_laser_scan = nh.subscribe("/webcam_left/obstacle_scan", 10, laserScanCallback);
-  //ros::Subscriber sub_safe_drive = nh.subscribe("/bluetooth_teleop/joy", 10, safeNavigate);
+  ros::Subscriber sub_safe_drive = nh.subscribe("/bluetooth_teleop/joy", 10, safeNavigate);
   marker_pub = nh.advertise<visualization_msgs::Marker>("visualize_laser", 10);
   vel_pub = nh.advertise<geometry_msgs::Twist>("/jackal_velocity_controller/cmd_vel", 10);
   ros::spin();
