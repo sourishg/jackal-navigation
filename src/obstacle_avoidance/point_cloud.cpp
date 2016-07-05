@@ -45,9 +45,12 @@ ros::Publisher marker_pub;
 int save_count = 1;
 
 Size rawimsize;
-Size cropped_imsize;
 int im_width = 270;
 int im_height = 180;
+int crop_offset_x = 0;
+int crop_offset_y = 0;
+int crop_im_width = 270;
+int crop_im_height = 180;
 const int INF = 1e9;
 
 const double gp_height_thresh = 0.06;
@@ -98,8 +101,8 @@ vector< Point3d > getfilteredPointCloud() {
 
 void filterDisparityMap(Mat& disp) {
   int w = 1;
-  for (int i = 0; i < im_width; i++) {
-    for (int j = 0; j < im_height; j++) {
+  for (int i = 0; i < disp.cols; i++) {
+    for (int j = 0; j < disp.rows; j++) {
       if (disp.at<uchar>(j,i) == 0)
         continue;
       int val = disp.at<uchar>(j,i);
@@ -216,8 +219,8 @@ void publishPointCloud(Mat& show) {
         points.push_back(Point3d(-1, -1, -1));
         continue;
       }
-      V.at<double>(0,0) = (double)i;
-      V.at<double>(1,0) = (double)j;
+      V.at<double>(0,0) = (double)(i + crop_offset_x);
+      V.at<double>(1,0) = (double)(j + crop_offset_y);
       V.at<double>(2,0) = (double)d;
       V.at<double>(3,0) = 1.;
       pos = Q * V;
@@ -246,8 +249,8 @@ void publishPointCloud(Mat& show) {
   }
   */
   int pts_idx = 0;
-  for (int i = 0; i <  im_width; i++) {
-    for (int j = 0; j < im_height; j++) {
+  for (int i = 0; i <  show.cols; i++) {
+    for (int j = 0; j < show.rows; j++) {
       geometry_msgs::Point32 pt;
       pt.x = points[pts_idx].x;
       pt.y = points[pts_idx].y;
@@ -296,9 +299,8 @@ void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
     if (tmp.empty()) return;
     resize(tmp, img1, rawimsize);
     cv::remap(img1, leftim, lmapx, lmapy, cv::INTER_LINEAR);
-    cropped_imsize = Size(270, 180);
-    //leftim_res = leftim(Rect(0, 0, 640, 360));
-    resize(leftim, leftim_res, cropped_imsize);
+    leftim_res = leftim(Rect(crop_offset_x, crop_offset_y, crop_im_width, crop_im_height));
+    //resize(leftim, leftim_res, cropped_imsize);
     //cv::imshow("view_left", leftim_res);
     Mat lb,rb;
     //lb = Mat(cropped_imsize, CV_8UC1, Scalar(0));
@@ -326,20 +328,20 @@ void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
     //Mat(rightdpf(cv::Rect(bd,0,leftim.cols,leftim.rows))).copyTo(disp);
     //rightdpf.copyTo(disp);
     //disp.convertTo(rightdisp,CV_16S,16);
-
+    
     int max_disp = -1;
-    for (int i = 0; i < im_width; i++) {
-      for (int j = 0; j < im_height; j++) {
+    for (int i = 0; i < imsize.width; i++) {
+      for (int j = 0; j < imsize.height; j++) {
         if (leftdpf.at<uchar>(j,i) > max_disp) max_disp = leftdpf.at<uchar>(j,i);
       }
     }
-    for (int i = 0; i < im_width; i++) {
-      for (int j = 0; j < im_height; j++) {
+    for (int i = 0; i < imsize.width; i++) {
+      for (int j = 0; j < imsize.height; j++) {
         leftdpf.at<uchar>(j,i) = (int)max(255.0*(float)leftdpf.at<uchar>(j,i)/max_disp,0.0);
       }
     }
-
-    show = Mat(180, 270, CV_8UC1, Scalar(0));
+    
+    show = Mat(crop_im_height, crop_im_width, CV_8UC1, Scalar(0));
     leftdpf.convertTo(show, CV_8U, 1.);
     /*
     if (dmaps.size() < 2) {
@@ -351,7 +353,7 @@ void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
     }
     */
     if (!show.empty()) {
-      filterDisparityMap(show);
+      //filterDisparityMap(show);
       sensor_msgs::ImagePtr disp_msg;
       //if (dmaps.size() < 2)
       disp_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", show).toImageMsg();
@@ -392,8 +394,8 @@ void imageCallbackRight(const sensor_msgs::CompressedImageConstPtr& msg)
     if (tmp.empty()) return;
     resize(tmp, img2, rawimsize);
     cv::remap(img2, rightim, rmapx, rmapy, cv::INTER_LINEAR);
-    //rightim_res = rightim(Rect(0, 0, 640, 360));
-    resize(rightim, rightim_res, Size(270, 180));
+    rightim_res = rightim(Rect(crop_offset_x, crop_offset_y, crop_im_width, crop_im_height));
+    //resize(rightim, rightim_res, Size(270, 180));
     /*
     cv::imshow("view_right", rightim_res);
     if (cv::waitKey(30) > 0) {
