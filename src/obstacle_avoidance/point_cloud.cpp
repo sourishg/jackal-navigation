@@ -51,8 +51,8 @@ int im_height = 180;
 const int INF = 1e9;
 
 const double gp_height_thresh = 0.06;
-const double gp_angle_thresh = 5. * 3.1415 / 180.;
-const double gp_dist_thresh = 1.;
+const double gp_angle_thresh = 4. * 3.1415 / 180.;
+const double gp_dist_thresh = 0.8;
 
 bool inImg(int x, int y) {
   if (x >= 0 && x < show.cols && y >= 0 && y < show.rows)

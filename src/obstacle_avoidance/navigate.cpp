@@ -25,6 +25,13 @@ int last_dir = 0;
 
 const int INF = 1e9;
 
+void capture_frame_fisheye(const sensor_msgs::JoyConstPtr& msg) {
+  int trigger = msg->buttons[11];
+  if (trigger) {
+    // code for capturing frame
+  }
+}
+
 void visualizeLaserPoints() {
   visualization_msgs::Marker line_strip;
   line_strip.header.frame_id = "map";
@@ -83,21 +90,33 @@ int checkObstacle() {
   return dir;
 }
 
+double getSafeVel(double trans_accel) {
+  double minDist = 1000;
+  for (int i = 0; i < laserScan[i]; i++) {
+    minDist = min(minDist, laserScan[i]);
+  }
+  return sqrt(2 * trans_accel * minDist);
+}
+
 void safeNavigate(const sensor_msgs::JoyConstPtr& msg) {
   int trigger = msg->buttons[9];
-  if (!trigger) 
+  if (!trigger) {
+    forward_vel = rot_vel = 0.;
     return;
+  }
   double side = msg->axes[0];
   double front = msg->axes[1];
   double trans_accel = 0.025;
   double rot_accel = 0.05;
-  double max_forward_vel = 0.4;
+  double max_forward_vel = 1.0;
   double max_rot_vel = 1.4;
   double desired_forward_vel = max_forward_vel * front;
   double desired_rot_vel = max_rot_vel * side;
   int dir = checkObstacle();
-  if (dir == 1)
+  if (dir == 1) {
     desired_rot_vel = 1.2;
+    desired_forward_vel = min(desired_forward_vel, getSafeVel(trans_accel));
+  }
   if (desired_forward_vel < forward_vel) {
     forward_vel = max(desired_forward_vel, forward_vel - trans_accel);
   } else {
@@ -130,6 +149,7 @@ void safeNavigate(const sensor_msgs::JoyConstPtr& msg) {
   }
   last_dir = dir;
   */
+  cout << "F: " << forward_vel << " R: " << rot_vel << endl;
   geometry_msgs::Twist vel_msg;
   vel_msg.linear.x = forward_vel;
   vel_msg.angular.z = rot_vel;
@@ -163,6 +183,7 @@ int main(int argc, char** argv) {
   ros::NodeHandle nh;
   ros::Subscriber sub_laser_scan = nh.subscribe("/webcam_left/obstacle_scan", 10, laserScanCallback);
   ros::Subscriber sub_safe_drive = nh.subscribe("/bluetooth_teleop/joy", 10, safeNavigate);
+  ros::Subscriber cap_fisheye = nh.subscribe("/bluetooth_teleop/joy", 10, capture_frame_fisheye);
   marker_pub = nh.advertise<visualization_msgs::Marker>("visualize_laser", 10);
   vel_pub = nh.advertise<geometry_msgs::Twist>("/jackal_velocity_controller/cmd_vel", 10);
   ros::spin();
