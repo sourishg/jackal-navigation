@@ -3,6 +3,7 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <cv_bridge/cv_bridge.h>
+#include <sensor_msgs/CompressedImage.h>
 
 using namespace cv;
 Mat imgL, imgR, imgL_resized, imgR_resized;
