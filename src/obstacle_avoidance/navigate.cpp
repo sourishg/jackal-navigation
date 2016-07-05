@@ -114,7 +114,7 @@ void safeNavigate(const sensor_msgs::JoyConstPtr& msg) {
   double desired_rot_vel = max_rot_vel * side;
   int dir = checkObstacle();
   if (dir == 1) {
-    desired_rot_vel = 1.2;
+    desired_rot_vel = 0.7;
     desired_forward_vel = min(desired_forward_vel, getSafeVel(trans_accel));
   }
   if (desired_forward_vel < forward_vel) {
