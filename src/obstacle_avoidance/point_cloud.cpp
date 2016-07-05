@@ -293,6 +293,7 @@ void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
   {
     //Mat tmp = cv_bridge::toCvShare(msg, "mono8")->image;
     Mat tmp = cv::imdecode(cv::Mat(msg->data), CV_LOAD_IMAGE_UNCHANGED);
+    if (tmp.empty()) return;
     resize(tmp, img1, rawimsize);
     cv::remap(img1, leftim, lmapx, lmapy, cv::INTER_LINEAR);
     cropped_imsize = Size(270, 180);
@@ -300,12 +301,11 @@ void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
     resize(leftim, leftim_res, cropped_imsize);
     //cv::imshow("view_left", leftim_res);
     Mat lb,rb;
-    lb = Mat(cropped_imsize, CV_8UC1, Scalar(0));
-    rb = Mat(cropped_imsize, CV_8UC1, Scalar(0));
-    if(leftim.channels()==3){cvtColor(leftim_res,lb,CV_BGR2GRAY);}
-    else lb=leftim_res;
-    if(rightim.channels()==3)cvtColor(rightim_res,rb,CV_BGR2GRAY);
-    else rb=rightim_res;
+    //lb = Mat(cropped_imsize, CV_8UC1, Scalar(0));
+    //rb = Mat(cropped_imsize, CV_8UC1, Scalar(0));
+    if (leftim_res.empty() || rightim_res.empty()) return;
+    cvtColor(leftim_res,lb,CV_BGR2GRAY);
+    cvtColor(rightim_res,rb,CV_BGR2GRAY);
     int bd = 0;
 
     const cv::Size imsize = lb.size();
@@ -389,6 +389,7 @@ void imageCallbackRight(const sensor_msgs::CompressedImageConstPtr& msg)
   {
     //Mat tmp = cv_bridge::toCvShare(msg, "mono8")->image;
     Mat tmp = cv::imdecode(cv::Mat(msg->data), CV_LOAD_IMAGE_UNCHANGED);
+    if (tmp.empty()) return;
     resize(tmp, img2, rawimsize);
     cv::remap(img2, rightim, rmapx, rmapy, cv::INTER_LINEAR);
     //rightim_res = rightim(Rect(0, 0, 640, 360));
