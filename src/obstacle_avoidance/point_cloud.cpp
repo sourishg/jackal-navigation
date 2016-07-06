@@ -430,7 +430,7 @@ int main(int argc, char **argv)
   //cv::namedWindow("view_right");
   //cv::namedWindow("view_disp");
 
-  cv::FileStorage fs1("/home/sourish/catkin_ws/src/jackal_nav/src/calibration/stereo_calib.yml", cv::FileStorage::READ);
+  cv::FileStorage fs1(argv[1], cv::FileStorage::READ);
   fs1["K1"] >> K1;
   fs1["K2"] >> K2;
   fs1["D1"] >> D1;
