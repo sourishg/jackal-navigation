@@ -56,7 +56,7 @@ void visualizeLaserPoints() {
 
 int checkObstacle() {
   int count = 0;
-  int laser_pt_thresh = 10;
+  int laser_pt_thresh = 7;
   int dir = 0;
   double clear_front = 1.7;
   double clear_side = 0.3;
@@ -108,7 +108,7 @@ void safeNavigate(const sensor_msgs::JoyConstPtr& msg) {
   double front = msg->axes[1];
   double trans_accel = 0.025;
   double rot_accel = 0.05;
-  double max_forward_vel = 0.6;
+  double max_forward_vel = 0.5;
   double max_rot_vel = 1.3;
   double desired_forward_vel = max_forward_vel * front;
   double desired_rot_vel = max_rot_vel * side;
@@ -118,7 +118,7 @@ void safeNavigate(const sensor_msgs::JoyConstPtr& msg) {
     if (msg->buttons[11]) {
       desired_forward_vel = min(desired_forward_vel, 0.);
     } else {
-      desired_rot_vel = 0.7;
+      desired_rot_vel = 1.3;
       desired_forward_vel = min(desired_forward_vel, getSafeVel(trans_accel));
     }
   }
