@@ -49,9 +49,9 @@ Size rawimsize;
 int im_width = 270;
 int im_height = 180;
 int crop_offset_x = 0;
-int crop_offset_y = 40;
+int crop_offset_y = 0;
 int crop_im_width = 270;
-int crop_im_height = 140;
+int crop_im_height = 180;
 const int INF = 1e9;
 
 const double gp_height_thresh = 0.06;
