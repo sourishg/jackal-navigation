@@ -22,7 +22,24 @@ sudo chmod a+rw /dev/video1
 roslaunch jackal_nav webcam_right.launch
 ```
 
-You should now get all the necessary camera topics to be processed.
+### Safe navigation
+
+Once the camera topics are being published, generate a point cloud and an obstacle scan using this command.
+
+```bash
+rosrun jackal_nav point_cloud [path/to/calibration/file.yml]
+```
+
+It subscribes to two camera topics: `/webcam_left/image_raw/compressed` and `/webcam_right/image_raw/compressed`
+It publishes three topics: `/webcam_left/depth_map`, `/webcam_left/point_cloud`, and `/webcam_left/obstacle_scan`
+
+Now the run the `navigate` node for safe navigation. 
+
+```bash
+rosrun jackal_nav navigate
+```
+
+To drive the Jackal safely hold `R1` + `R2` on the DualShock controller and use the left stick to drive.
 
 ### Disparity Maps
 
