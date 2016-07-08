@@ -31,6 +31,7 @@ rosrun jackal_nav point_cloud [path/to/calibration/file.yml]
 ```
 
 It subscribes to two camera topics: `/webcam_left/image_raw/compressed` and `/webcam_right/image_raw/compressed`
+
 It publishes three topics: `/webcam_left/depth_map`, `/webcam_left/point_cloud`, and `/webcam_left/obstacle_scan`
 
 Now the run the `navigate` node for safe navigation. 
