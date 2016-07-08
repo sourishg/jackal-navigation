@@ -11,18 +11,6 @@
 #include <sensor_msgs/ChannelFloat32.h>
 #include <sensor_msgs/CompressedImage.h>
 #include <geometry_msgs/Point32.h>
-#include <pcl_conversions/pcl_conversions.h>
-#include <pcl/point_cloud.h>
-#include <pcl/point_types.h>
-#include <pcl/kdtree/kdtree_flann.h>
-#include <pcl/common/transforms.h>
-#include <pcl/io/pcd_io.h>
-#include <pcl/io/ply_io.h>
-#include <pcl/io/obj_io.h>
-#include <pcl/pcl_exports.h>
-#include <pcl/console/parse.h>
-#include <pcl/features/normal_3d.h>
-#include <pcl/features/normal_3d_omp.h>
 #include <visualization_msgs/Marker.h>
 #include "elas.h"
 #include "image.h"
@@ -31,19 +19,17 @@ using namespace std;
 using namespace cv;
 
 Mat img1, img2, leftim, rightim, leftim_res, rightim_res, show;
-cv::Mat R1, R2, P1, P2, Q;
-cv::Mat K1, K2, R;
-cv::Vec3d T;
-cv::Mat D1, D2;
+Mat R1, R2, P1, P2, Q;
+Mat K1, K2, R;
+Vec3d T;
+Mat D1, D2;
 Mat XR, XT, V, pos;
-cv::Mat lmapx, lmapy, rmapx, rmapy;
+Mat lmapx, lmapy, rmapx, rmapy;
 Mat leftdisp, rightdisp;
 image_transport::Publisher disp_pub;
 ros::Publisher pcl_publisher;
 ros::Publisher obstacle_scan_publisher;
 ros::Publisher marker_pub;
-
-int save_count = 1;
 
 Size rawimsize;
 int im_width = 270;
@@ -54,78 +40,21 @@ int crop_im_width = 270;
 int crop_im_height = 180;
 const int INF = 1e9;
 
-const double gp_height_thresh = 0.06;
-const double gp_angle_thresh = 4. * 3.1415 / 180.;
-const double gp_dist_thresh = 0.8;
+const double GP_HEIGHT_THRESH = 0.06; // group plane height threshold
+const double GP_ANGLE_THRESH = 4. * 3.1415 / 180.; // ground plane angular height threshold
+const double GP_DIST_THRESH = 0.8; // starting distance for angular threshold
+const double ROBOT_HEIGHT = 0.34;
 
 bool inImg(int x, int y) {
+  // check if pixel lies inside image
   if (x >= 0 && x < show.cols && y >= 0 && y < show.rows)
     return true;
 }
 
-/*
-vector< Point3d > getfilteredPointCloud() {
-  double error_thresh = 0.4;
-  vector< Point3d > filtered_pts;
-  filtered_pts.resize(im_width * im_height);
-  for (int i = 0; i < im_width * im_height; i++) {
-    deque< vector< Point3d > >::iterator it;
-    vector< Point3d > check_pts;
-    for (it = pcls.begin(); it != pcls.end(); it++) {
-      check_pts.push_back((*it)[i]);
-    }
-    double sum_error = 0.;
-    int n = check_pts.size();
-    int count = 0;
-    double X = 0, Y = 0, Z = 0;
-    for (int j = 0; j < n; j++) {
-      if (check_pts[j].x == -1) {
-        continue;
-      }
-      X += check_pts[j].x;
-      Y += check_pts[j].y;
-      Z += check_pts[j].z;
-      count++;
-    }
-    if (count == 0) {
-      filtered_pts[i] = check_pts[n-1];
-      continue;
-    }
-    X /= count;
-    Y /= count;
-    Z /= count;
-    filtered_pts[i] = Point3d(X, Y, Z);
-  }
-  return filtered_pts;
-}
-*/
-
-void filterDisparityMap(Mat& disp) {
-  int w = 1;
-  for (int i = 0; i < disp.cols; i++) {
-    for (int j = 0; j < disp.rows; j++) {
-      if (disp.at<uchar>(j,i) == 0)
-        continue;
-      int val = disp.at<uchar>(j,i);
-      int count = 0;
-      for (int k = -w; k <= w; k++) {
-        for (int l = -w; l <= w; l++) {
-          if (inImg(i+k,j+l)) {
-            if (abs(val - disp.at<uchar>(i+k,j+l)) > 80) {
-              count++;
-            }
-          }
-        }
-      }
-      if (count > (2*w+1)*(2*w+1)/2)
-        disp.at<uchar>(j,i) = 0;
-    }
-  }
-}
-
 void visualizeCriticalRegion() {
+  // visualize region in front of the robot
   visualization_msgs::Marker line_strip;
-  line_strip.header.frame_id = "map";
+  line_strip.header.frame_id = "jackal";
   line_strip.header.stamp = ros::Time::now();
   line_strip.ns = "jackal_obstacle_avoidance";
   line_strip.action = visualization_msgs::Marker::ADD;
@@ -156,26 +85,24 @@ void visualizeCriticalRegion() {
 }
 
 void publishObstacleScan(vector< Point3d > points) {
-  double fov = 90.;
-  int bin_size = 90;
+  double fov = 90.; // FOV for obstacle scan
+  int bin_size = 90; // Max number of obstacle points
   double min_angle = 400, max_angle = -400;
   double range_min = INF, range_max = -500;
   double scan[bin_size];
   Point3d closest_pt[bin_size];
   sensor_msgs::LaserScan obstacle_scan;
-  obstacle_scan.header.frame_id = "map";
+  obstacle_scan.header.frame_id = "jackal";
   obstacle_scan.header.stamp = ros::Time::now();
   for (int i = 0; i < bin_size; i++) {
     scan[i] = INF;
   }
   for (int i = 0; i < points.size(); i++) {
-    if (points[i].x == -1)
-      continue;
-    if (points[i].x < gp_dist_thresh) {
-      if (points[i].z < gp_height_thresh)
+    if (points[i].x < GP_DIST_THRESH) {
+      if (points[i].z < GP_HEIGHT_THRESH)
         continue;
     } else {
-      if (points[i].z < gp_height_thresh + tan(gp_angle_thresh) * (points[i].x - gp_dist_thresh))
+      if (points[i].z < GP_HEIGHT_THRESH + tan(GP_ANGLE_THRESH) * (points[i].x - GP_DIST_THRESH))
         continue;
     }
     double theta_rad = atan2(points[i].y, points[i].x);
@@ -211,13 +138,12 @@ void publishPointCloud(Mat& show) {
   sensor_msgs::PointCloud pc;
   sensor_msgs::ChannelFloat32 ch;
   ch.name = "rgb";
-  pc.header.frame_id = "map";
+  pc.header.frame_id = "jackal";
   pc.header.stamp = ros::Time::now();
   for (int i = 0; i < show.cols; i++) {
     for (int j = 0; j < show.rows; j++) {
       int d = show.at<uchar>(j,i);
       if (d < 2) {
-        points.push_back(Point3d(-1, -1, -1));
         continue;
       }
       V.at<double>(0,0) = (double)(i + crop_offset_x);
@@ -233,36 +159,18 @@ void publishPointCloud(Mat& show) {
       point3d_cam.at<double>(1,0) = Y;
       point3d_cam.at<double>(2,0) = Z;
       Mat point3d_robot = XR * point3d_cam + XT;
-      if (point3d_robot.at<double>(2,0) > 0.34 || point3d_robot.at<double>(2,0) < 0.) {
-        points.push_back(Point3d(-1, -1, -1));
+      if (point3d_robot.at<double>(2,0) > ROBOT_HEIGHT || point3d_robot.at<double>(2,0) < 0.) {
         continue;
       }
       points.push_back(Point3d(point3d_robot));
-    }
-  }
-  /*
-  if (pcls.size() < 5) {
-    pcls.push_back(points);
-  } else {
-    pcls.pop_front();
-    pcls.push_back(points);
-    points = getfilteredPointCloud();
-  }
-  */
-  int pts_idx = 0;
-  for (int i = 0; i <  show.cols; i++) {
-    for (int j = 0; j < show.rows; j++) {
       geometry_msgs::Point32 pt;
-      pt.x = points[pts_idx].x;
-      pt.y = points[pts_idx].y;
-      pt.z = points[pts_idx].z;
-      pts_idx++;
-      if (pt.x == -1)
-        continue;
+      pt.x = point3d_robot.at<double>(0,0);
+      pt.y = point3d_robot.at<double>(1,0);
+      pt.z = point3d_robot.at<double>(2,0);
       pc.points.push_back(pt);
       int32_t red, blue, green;
-      if (pt.x < gp_dist_thresh) {
-        if (pt.z < gp_height_thresh) {
+      if (pt.x < GP_DIST_THRESH) {
+        if (pt.z < GP_HEIGHT_THRESH) {
           red = 0;
           blue = 0;
           green = 255;
@@ -272,7 +180,7 @@ void publishPointCloud(Mat& show) {
           blue = leftim_res.at<Vec3b>(j,i)[0];
         }
       } else {
-        if (pt.z < gp_height_thresh + tan(gp_angle_thresh) * (pt.x - gp_dist_thresh)) {
+        if (pt.z < GP_HEIGHT_THRESH + tan(GP_ANGLE_THRESH) * (pt.x - GP_DIST_THRESH)) {
           red = 0;
           blue = 0;
           green = 255;
@@ -282,6 +190,7 @@ void publishPointCloud(Mat& show) {
           blue = leftim_res.at<Vec3b>(j,i)[0];
         }
       }
+      // color point cloud
       int32_t rgb = (red << 16 | green << 8 | blue);
       ch.values.push_back(*reinterpret_cast<float*>(&rgb));
     }
