@@ -30,9 +30,16 @@ Once the camera topics are being published, generate a point cloud and an obstac
 rosrun jackal_nav point_cloud [path/to/calibration/file.yml]
 ```
 
-It subscribes to two camera topics: `/webcam_left/image_raw/compressed` and `/webcam_right/image_raw/compressed`
+Subscribes to two camera topics: 
 
-It publishes three topics: `/webcam_left/depth_map`, `/webcam_left/point_cloud`, and `/webcam_left/obstacle_scan`
+- `/webcam_left/image_raw/compressed`
+- `/webcam_right/image_raw/compressed`
+
+Publishes three topics: 
+
+- `/webcam_left/depth_map`
+- `/webcam_left/point_cloud`
+- `/webcam_left/obstacle_scan`
 
 Now the run the `navigate` node for safe navigation. 
 
