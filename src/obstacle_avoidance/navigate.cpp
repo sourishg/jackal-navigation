@@ -70,12 +70,16 @@ int checkObstacle() {
 }
 
 int chooseDirection() {
-  int py = 0, ny = 0;
+  double left_score = 0., right_score = 0.;
   for (int i = 0; i < laserPoints.size(); i++) {
-    if (laserPoints[i].y < 0) ny++;
-    else py++; 
+    double dist = sqrt(laserPoints[i].x*laserPoints[i].x + laserPoints[i].y*laserPoints[i].y);
+    if (laserPoints[i].y < 0) {
+      right_score += dist;
+    } else {
+      left_score += dist;
+    } 
   }
-  if (py > ny)
+  if (left_score > right_score)
     return 1;
   return 0;
 }
