@@ -21,6 +21,7 @@ ros::Publisher marker_pub;
 ros::Publisher vel_pub;
 
 double forward_vel = 0., rot_vel = 0.;
+bool obstacle_course_trigger = 0;
 
 const int INF = 1e9;
 
@@ -68,6 +69,17 @@ int checkObstacle() {
   return isObstacle;
 }
 
+int chooseDirection() {
+  int py = 0, ny = 0;
+  for (int i = 0; i < laserPoints.size(); i++) {
+    if (laserPoints[i].y < 0) ny++;
+    else py++; 
+  }
+  if (py > ny)
+    return 1;
+  return 0;
+}
+
 double getSafeVel(double trans_accel) {
   // get maximum allowable velocity in front of obstacle
   double minDist = INF;
@@ -81,7 +93,7 @@ void safeNavigate(const sensor_msgs::JoyConstPtr& msg) {
   int trigger = msg->buttons[9];
   // if RT is not triggered, do nothing
   if (!trigger) {
-    forward_vel = rot_vel = 0.;
+    // forward_vel = rot_vel = 0.;
     return;
   }
   double side = msg->axes[0];
@@ -105,6 +117,47 @@ void safeNavigate(const sensor_msgs::JoyConstPtr& msg) {
     }
   }
   // accelerate or decelerate accordingly
+  if (desired_forward_vel < forward_vel) {
+    forward_vel = max(desired_forward_vel, forward_vel - trans_accel);
+  } else {
+    forward_vel = min(desired_forward_vel, forward_vel + trans_accel);
+  }
+  if (desired_rot_vel < rot_vel) {
+    rot_vel = max(desired_rot_vel, rot_vel - rot_accel);
+  } else {
+    rot_vel = min(desired_rot_vel, rot_vel + rot_accel);
+  }
+  geometry_msgs::Twist vel_msg;
+  vel_msg.linear.x = forward_vel;
+  vel_msg.angular.z = rot_vel;
+  vel_pub.publish(vel_msg);
+}
+
+void runObstacleCourse(const sensor_msgs::JoyConstPtr& msg) {
+  int trigger = msg->buttons[14];
+  if (!trigger) {
+    // forward_vel = rot_vel = 0.;
+    return;
+  }
+  double trans_accel = 0.025;
+  double rot_accel = 0.05;
+  double max_forward_vel = 0.5;
+  double max_rot_vel = 1.3;
+  double desired_forward_vel;
+  double desired_rot_vel;
+  int obst = checkObstacle();
+  if (obst) {
+    int dir = chooseDirection();
+    if (dir) {
+      desired_rot_vel = max_rot_vel * 0.95;
+    } else {
+      desired_rot_vel = max_rot_vel * 0.95 * (-1);
+    }
+    desired_forward_vel = max_forward_vel * 0.4;
+  } else {
+    desired_forward_vel = max_forward_vel * 0.95;
+    desired_rot_vel = max_rot_vel * 0.0;
+  }
   if (desired_forward_vel < forward_vel) {
     forward_vel = max(desired_forward_vel, forward_vel - trans_accel);
   } else {
@@ -148,6 +201,7 @@ int main(int argc, char** argv) {
   ros::NodeHandle nh;
   ros::Subscriber sub_laser_scan = nh.subscribe("/webcam_left/obstacle_scan", 10, laserScanCallback);
   ros::Subscriber sub_safe_drive = nh.subscribe("/bluetooth_teleop/joy", 10, safeNavigate);
+  ros::Subscriber obst_course_drive = nh.subscribe("/bluetooth_teleop/joy", 10, runObstacleCourse);
   marker_pub = nh.advertise<visualization_msgs::Marker>("visualize_laser", 10);
   vel_pub = nh.advertise<geometry_msgs::Twist>("/jackal_velocity_controller/cmd_vel", 10);
   ros::spin();
