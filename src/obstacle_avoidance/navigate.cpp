@@ -53,7 +53,7 @@ int checkObstacle() {
   int laser_pt_thresh = 7;
   int isObstacle = 0;
   // declare clearances in front and side of the robot
-  double clear_front = 1.7;
+  double clear_front = 1.4;
   double clear_side = 0.3;
   for (int i = 0; i < laserPoints.size(); i++) {    
     // check if laser points lie in safe region
@@ -71,17 +71,22 @@ int checkObstacle() {
 
 int chooseDirection() {
   double left_score = 0., right_score = 0.;
+  double clear_front = 1.4;
+  double clear_side = 0.3;
   for (int i = 0; i < laserPoints.size(); i++) {
-    double dist = sqrt(laserPoints[i].x*laserPoints[i].x + laserPoints[i].y*laserPoints[i].y);
-    if (laserPoints[i].y < 0) {
-      right_score += dist;
-    } else {
-      left_score += dist;
+    if (laserPoints[i].x > 0. && laserPoints[i].x < clear_front
+        && laserPoints[i].y > -clear_side && laserPoints[i].y < clear_side) {
+      double dist = sqrt(laserPoints[i].x*laserPoints[i].x + laserPoints[i].y*laserPoints[i].y);
+      if (laserPoints[i].y < 0) {
+        right_score += dist;
+      } else {
+        left_score += dist;
+      }
     } 
   }
   if (left_score > right_score)
-    return 1;
-  return 0;
+    return 0;
+  return 1;
 }
 
 double getSafeVel(double trans_accel) {
@@ -146,7 +151,7 @@ void runObstacleCourse(const sensor_msgs::JoyConstPtr& msg) {
   double trans_accel = 0.025;
   double rot_accel = 0.05;
   double max_forward_vel = 0.5;
-  double max_rot_vel = 1.3;
+  double max_rot_vel = 1.0;
   double desired_forward_vel;
   double desired_rot_vel;
   int obst = checkObstacle();
