@@ -52,7 +52,7 @@ rosrun jackal_nav navigate
 Use the following combos on the DualShock controller to switch between modes
 
 - `R1 + R2`: Use left stick to drive. The jackal stops in front of obstacles.
-- `X`: Hold to let the Jackal move in the direction it's facing avoiding obstacles in its way.
+- `Hold X`: Let the Jackal move in the direction it's facing avoiding obstacles in its way.
 
 ### Disparity Maps
 
