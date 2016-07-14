@@ -21,7 +21,10 @@ ros::Publisher marker_pub;
 ros::Publisher vel_pub;
 
 double forward_vel = 0., rot_vel = 0.;
-bool obstacle_course_trigger = 0;
+double trans_accel = 0.025;
+double rot_accel = 0.05;
+double max_forward_vel = 0.5;
+double max_rot_vel = 1.3;
 
 const int INF = 1e9;
 
@@ -98,60 +101,17 @@ double getSafeVel(double trans_accel) {
   return sqrt(2 * trans_accel * minDist);
 }
 
-void safeNavigate(const sensor_msgs::JoyConstPtr& msg) {
-  int trigger = msg->buttons[9];
-  // if RT is not triggered, do nothing
-  if (!trigger) {
-    // forward_vel = rot_vel = 0.;
-    return;
-  }
-  double side = msg->axes[0];
-  double front = msg->axes[1];
-  double trans_accel = 0.025;
-  double rot_accel = 0.05;
-  double max_forward_vel = 0.5;
-  double max_rot_vel = 1.3;
+pair< double, double > stopInFrontMode(double side, double front) {
   double desired_forward_vel = max_forward_vel * front;
   double desired_rot_vel = max_rot_vel * side;
   int dir = checkObstacle();
   if (dir == 1) {
-    // stop-in-front-of-obstacle mode
-    if (msg->buttons[11]) {
-      desired_forward_vel = min(desired_forward_vel, 0.);
-    }
-    // rotate-in-front-of obstacle mode 
-    else {
-      desired_rot_vel = 1.3;
-      desired_forward_vel = min(desired_forward_vel, getSafeVel(trans_accel));
-    }
+    desired_forward_vel = min(desired_forward_vel, 0.);
   }
-  // accelerate or decelerate accordingly
-  if (desired_forward_vel < forward_vel) {
-    forward_vel = max(desired_forward_vel, forward_vel - trans_accel);
-  } else {
-    forward_vel = min(desired_forward_vel, forward_vel + trans_accel);
-  }
-  if (desired_rot_vel < rot_vel) {
-    rot_vel = max(desired_rot_vel, rot_vel - rot_accel);
-  } else {
-    rot_vel = min(desired_rot_vel, rot_vel + rot_accel);
-  }
-  geometry_msgs::Twist vel_msg;
-  vel_msg.linear.x = forward_vel;
-  vel_msg.angular.z = rot_vel;
-  vel_pub.publish(vel_msg);
+  return make_pair(desired_forward_vel, desired_rot_vel);
 }
 
-void runObstacleCourse(const sensor_msgs::JoyConstPtr& msg) {
-  int trigger = msg->buttons[14];
-  if (!trigger) {
-    // forward_vel = rot_vel = 0.;
-    return;
-  }
-  double trans_accel = 0.025;
-  double rot_accel = 0.05;
-  double max_forward_vel = 0.5;
-  double max_rot_vel = 1.0;
+pair< double, double > obstacleAvoidMode() {
   double desired_forward_vel;
   double desired_rot_vel;
   int obst = checkObstacle();
@@ -167,6 +127,27 @@ void runObstacleCourse(const sensor_msgs::JoyConstPtr& msg) {
     desired_forward_vel = max_forward_vel * 0.95;
     desired_rot_vel = max_rot_vel * 0.0;
   }
+  return make_pair(desired_forward_vel, desired_rot_vel);
+}
+
+void safeNavigate(const sensor_msgs::JoyConstPtr& msg) {
+  int R2 = msg->buttons[9];
+  int R1 = msg->buttons[11];
+  int X = msg->buttons[14];
+  double side = msg->axes[0];
+  double front = msg->axes[1];
+  double desired_forward_vel, desired_rot_vel;
+  pair< double, double > desired_vel;
+  if (R1 && R2) {
+    desired_vel = stopInFrontMode(side, front);
+  } else if (X) {
+    desired_vel = obstacleAvoidMode();
+  } else {
+    return;
+  }
+  // accelerate or decelerate accordingly
+  desired_forward_vel = desired_vel.first;
+  desired_rot_vel = desired_vel.second;
   if (desired_forward_vel < forward_vel) {
     forward_vel = max(desired_forward_vel, forward_vel - trans_accel);
   } else {
@@ -210,7 +191,6 @@ int main(int argc, char** argv) {
   ros::NodeHandle nh;
   ros::Subscriber sub_laser_scan = nh.subscribe("/webcam_left/obstacle_scan", 10, laserScanCallback);
   ros::Subscriber sub_safe_drive = nh.subscribe("/bluetooth_teleop/joy", 10, safeNavigate);
-  ros::Subscriber obst_course_drive = nh.subscribe("/bluetooth_teleop/joy", 10, runObstacleCourse);
   marker_pub = nh.advertise<visualization_msgs::Marker>("visualize_laser", 10);
   vel_pub = nh.advertise<geometry_msgs::Twist>("/jackal_velocity_controller/cmd_vel", 10);
   ros::spin();
