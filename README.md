@@ -47,7 +47,12 @@ Now the run the `navigate` node for safe navigation.
 rosrun jackal_nav navigate
 ```
 
-To drive the Jackal safely hold `R1` + `R2` on the DualShock controller and use the left stick to drive.
+### Drive modes
+
+Use the following combos on the DualShock controller to switch between modes
+
+- `R1 + R2`: Use left stick to drive. The jackal stops in front of obstacles.
+- `X`: Hold to let the Jackal move in the direction it's facing avoiding obstacles in its way.
 
 ### Disparity Maps
 
