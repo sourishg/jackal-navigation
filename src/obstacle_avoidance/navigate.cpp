@@ -26,6 +26,8 @@ double rot_accel = 0.05;
 double max_forward_vel = 0.5;
 double max_rot_vel = 1.3;
 
+int last_dir = 0;
+
 const int INF = 1e9;
 
 void visualizeLaserPoints() {
@@ -73,23 +75,45 @@ int checkObstacle() {
 }
 
 int chooseDirection() {
-  double left_score = 0., right_score = 0.;
+  int left_count = 0, right_count = 0;
   double clear_front = 1.4;
   double clear_side = 0.3;
   for (int i = 0; i < laserPoints.size(); i++) {
-    if (laserPoints[i].x > 0. && laserPoints[i].x < clear_front
-        && laserPoints[i].y > -clear_side && laserPoints[i].y < clear_side) {
-      double dist = sqrt(laserPoints[i].x*laserPoints[i].x + laserPoints[i].y*laserPoints[i].y);
+    if (laserPoints[i].x > 0. && laserPoints[i].x < clear_front) {
       if (laserPoints[i].y < 0) {
-        right_score += dist;
+        right_count++;
       } else {
-        left_score += dist;
+        left_count++;
       }
     } 
   }
-  if (left_score > right_score)
+  if (left_count + right_count < 2)
     return 0;
-  return 1;
+  double conf_left = 2.*(double)right_count/(double)(left_count+right_count);
+  double conf_right = 2.*(double)left_count/(double)(left_count+right_count);
+  int dir = 0;
+  if (conf_left > conf_right) {
+    if (last_dir != 1) {
+      if (conf_left - conf_right > 0.5) {
+        dir = 1;
+      } else {
+        dir = last_dir;
+      }
+    } else {
+      dir = 1;
+    }
+  } else {
+    if (last_dir != 2) {
+      if (conf_right - conf_left > 0.5) {
+        dir = 2;
+      } else {
+        dir = last_dir;
+      }
+    } else {
+      dir = 2;
+    }
+  }
+  return dir;
 }
 
 double getSafeVel(double trans_accel) {
@@ -117,15 +141,19 @@ pair< double, double > obstacleAvoidMode() {
   int obst = checkObstacle();
   if (obst) {
     int dir = chooseDirection();
-    if (dir) {
+    last_dir = dir;
+    if (dir == 1) {
       desired_rot_vel = max_rot_vel * 0.95;
-    } else {
+    } else if (dir == 2) {
       desired_rot_vel = max_rot_vel * 0.95 * (-1);
+    } else {
+      desired_rot_vel = max_rot_vel * 0.0;
     }
     desired_forward_vel = max_forward_vel * 0.4;
   } else {
     desired_forward_vel = max_forward_vel * 0.95;
     desired_rot_vel = max_rot_vel * 0.0;
+    last_dir = 0;
   }
   return make_pair(desired_forward_vel, desired_rot_vel);
 }
@@ -166,7 +194,6 @@ void safeNavigate(const sensor_msgs::JoyConstPtr& msg) {
 
 void laserScanCallback(const sensor_msgs::LaserScanConstPtr& msg) {
   unsigned int numPoints = msg->ranges.size();
-  Point2d laserScannerLocation(0.0,0.0);
   double minAngle = msg->angle_min;
   double maxAngle = msg->angle_max;
   double angle;
@@ -180,8 +207,8 @@ void laserScanCallback(const sensor_msgs::LaserScanConstPtr& msg) {
   for (int i = 0; i < msg->ranges.size(); i++) {
     angle = (double)i * (maxAngle - minAngle) / (double)numPoints + minAngle;
     laserScan[i] = msg->ranges[i];
-    laserPoints[i].x = msg->ranges[i] * cos(angle) + laserScannerLocation.x;
-    laserPoints[i].y = msg->ranges[i] * sin(angle) + laserScannerLocation.y;
+    laserPoints[i].x = msg->ranges[i] * cos(angle);
+    laserPoints[i].y = msg->ranges[i] * sin(angle);
   }
   visualizeLaserPoints();
 }
