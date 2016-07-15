@@ -12,8 +12,10 @@
 #include <sensor_msgs/CompressedImage.h>
 #include <geometry_msgs/Point32.h>
 #include <visualization_msgs/Marker.h>
+#include "jackal_nav/JackalTimeLog.h"
 #include <ctime>
 #include <fstream>
+#include <string>
 #include "elas.h"
 #include "image.h"
 
@@ -33,6 +35,8 @@ ros::Publisher pcl_publisher;
 ros::Publisher obstacle_scan_publisher;
 ros::Publisher marker_pub;
 
+jackal_nav::JackalTimeLog time_log;
+
 Size rawimsize;
 int im_width = 270;
 int im_height = 180;
@@ -42,6 +46,8 @@ int crop_im_width = 270;
 int crop_im_height = 180;
 const int INF = 1e9;
 uint32_t seq = 0;
+bool logging = true;
+string working_dir;
 
 const double GP_HEIGHT_THRESH = 0.08; // group plane height threshold
 const double GP_ANGLE_THRESH = 4. * 3.1415 / 180.; // ground plane angular height threshold
@@ -138,10 +144,14 @@ void publishObstacleScan(vector< Point3d > points, uint32_t seq) {
   obstacle_scan_publisher.publish(obstacle_scan);
   clock_t end = clock();
   double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
-  ofstream myfile;
-  myfile.open("/home/cobot-m/catkin_ws/src/jackal_nav/data/obstacle_scan_time.txt", ios::out | ios::app);
-  myfile << elapsed_secs << endl;
-  myfile.close();
+  if (logging) {
+    ofstream myfile;
+    string log_file = working_dir;
+    log_file.append("data/obstacle_scan_time.txt");
+    myfile.open(log_file.c_str(), ios::out | ios::app);
+    myfile << elapsed_secs << endl;
+    myfile.close();
+  }
 }
 
 void publishPointCloud(Mat& show, uint32_t seq) {
@@ -308,10 +318,14 @@ void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
   }
   clock_t end = clock();
   double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
-  ofstream myfile;
-  myfile.open("/home/cobot-m/catkin_ws/src/jackal_nav/data/point_cloud_time.txt", ios::out | ios::app);
-  myfile << elapsed_secs << endl;
-  myfile.close();
+  if (logging) {
+    ofstream myfile;
+    string log_file = working_dir;
+    log_file.append("data/point_cloud_time.txt");
+    myfile.open(log_file.c_str(), ios::out | ios::app);
+    myfile << elapsed_secs << endl;
+    myfile.close();
+  }
   seq++;
 }
 
@@ -358,8 +372,10 @@ int main(int argc, char **argv)
   //cv::namedWindow("view_left");
   //cv::namedWindow("view_right");
   //cv::namedWindow("view_disp");
-
-  cv::FileStorage fs1(argv[1], cv::FileStorage::READ);
+  working_dir = argv[1];
+  string calib_file = working_dir;
+  calib_file.append("src/calibration/stereo_calib.yml");
+  cv::FileStorage fs1(calib_file.c_str(), cv::FileStorage::READ);
   fs1["K1"] >> K1;
   fs1["K2"] >> K2;
   fs1["D1"] >> D1;
