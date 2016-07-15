@@ -1,0 +1,3 @@
+Header header
+float32 pcl_time
+float32 obstacle_scan_time
