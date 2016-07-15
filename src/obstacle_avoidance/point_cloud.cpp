@@ -12,6 +12,8 @@
 #include <sensor_msgs/CompressedImage.h>
 #include <geometry_msgs/Point32.h>
 #include <visualization_msgs/Marker.h>
+#include <ctime>
+#include <fstream>
 #include "elas.h"
 #include "image.h"
 
@@ -39,6 +41,7 @@ int crop_offset_y = 0;
 int crop_im_width = 270;
 int crop_im_height = 180;
 const int INF = 1e9;
+uint32_t seq = 0;
 
 const double GP_HEIGHT_THRESH = 0.08; // group plane height threshold
 const double GP_ANGLE_THRESH = 4. * 3.1415 / 180.; // ground plane angular height threshold
@@ -84,7 +87,8 @@ void visualizeCriticalRegion() {
   marker_pub.publish(line_strip);
 }
 
-void publishObstacleScan(vector< Point3d > points) {
+void publishObstacleScan(vector< Point3d > points, uint32_t seq) {
+  clock_t begin = clock();
   double fov = 90.; // FOV for obstacle scan
   int bin_size = 90; // Max number of obstacle points
   double min_angle = 400, max_angle = -400;
@@ -92,6 +96,7 @@ void publishObstacleScan(vector< Point3d > points) {
   double scan[bin_size];
   Point3d closest_pt[bin_size];
   sensor_msgs::LaserScan obstacle_scan;
+  obstacle_scan.header.seq = seq;
   obstacle_scan.header.frame_id = "jackal";
   obstacle_scan.header.stamp = ros::Time::now();
   for (int i = 0; i < bin_size; i++) {
@@ -131,13 +136,20 @@ void publishObstacleScan(vector< Point3d > points) {
     }
   }
   obstacle_scan_publisher.publish(obstacle_scan);
+  clock_t end = clock();
+  double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
+  ofstream myfile;
+  myfile.open("/home/cobot-m/catkin_ws/src/jackal_nav/data/obstacle_scan_time.txt", ios::out | ios::app);
+  myfile << elapsed_secs << endl;
+  myfile.close();
 }
 
-void publishPointCloud(Mat& show) {
+void publishPointCloud(Mat& show, uint32_t seq) {
   vector< Point3d > points;
   sensor_msgs::PointCloud pc;
   sensor_msgs::ChannelFloat32 ch;
   ch.name = "rgb";
+  pc.header.seq = seq;
   pc.header.frame_id = "jackal";
   pc.header.stamp = ros::Time::now();
   for (int i = 0; i < show.cols; i++) {
@@ -197,11 +209,12 @@ void publishPointCloud(Mat& show) {
   }
   pc.channels.push_back(ch);
   pcl_publisher.publish(pc);
-  publishObstacleScan(points);
+  publishObstacleScan(points, seq);
 }
 
 void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
 {
+  clock_t begin = clock();
   try
   {
     //Mat tmp = cv_bridge::toCvShare(msg, "mono8")->image;
@@ -271,12 +284,12 @@ void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
       //disp_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", dmaps.back()).toImageMsg();
       disp_pub.publish(disp_msg);
       //if (dmaps.size() < 2)
-      publishPointCloud(show);
+      publishPointCloud(show, seq);
       //else
       //publishPointCloud(dmaps.back());
       //imshow("view_disp", show);
     }
-    visualizeCriticalRegion();
+    //visualizeCriticalRegion();
     /*
     if (cv::waitKey(30) > 0) {
       printf("Saving scene!\n");
@@ -293,6 +306,13 @@ void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
   catch (cv_bridge::Exception& e)
   {
   }
+  clock_t end = clock();
+  double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
+  ofstream myfile;
+  myfile.open("/home/cobot-m/catkin_ws/src/jackal_nav/data/point_cloud_time.txt", ios::out | ios::app);
+  myfile << elapsed_secs << endl;
+  myfile.close();
+  seq++;
 }
 
 void imageCallbackRight(const sensor_msgs::CompressedImageConstPtr& msg)
@@ -330,10 +350,10 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "jackal_obstacle_avoidance");
   ros::NodeHandle nh;
   image_transport::ImageTransport it(nh);
-  disp_pub = it.advertise("/webcam_left/depth_map", 10);
-  pcl_publisher = nh.advertise<sensor_msgs::PointCloud>("/webcam_left/point_cloud", 10);
-  obstacle_scan_publisher = nh.advertise<sensor_msgs::LaserScan>("/webcam_left/obstacle_scan", 10);
-  marker_pub = nh.advertise<visualization_msgs::Marker>("visualization_marker", 10);
+  disp_pub = it.advertise("/webcam/left/depth_map", 1);
+  pcl_publisher = nh.advertise<sensor_msgs::PointCloud>("/webcam/left/point_cloud", 1);
+  obstacle_scan_publisher = nh.advertise<sensor_msgs::LaserScan>("/webcam/left/obstacle_scan", 1);
+  marker_pub = nh.advertise<visualization_msgs::Marker>("visualization_marker", 1);
 
   //cv::namedWindow("view_left");
   //cv::namedWindow("view_right");
@@ -367,8 +387,8 @@ int main(int argc, char **argv)
   cv::initUndistortRectifyMap(K2, D2, R2, P2, img2.size(), CV_32F, rmapx, rmapy);
 
   //cv::startWindowThread();
-  ros::Subscriber subl = nh.subscribe("/webcam_left/image_raw/compressed", 10, imageCallbackLeft);
-  ros::Subscriber subr = nh.subscribe("/webcam_right/image_raw/compressed", 10, imageCallbackRight);
+  ros::Subscriber subl = nh.subscribe("/webcam/left/image_raw/compressed", 1, imageCallbackLeft);
+  ros::Subscriber subr = nh.subscribe("/webcam/right/image_raw/compressed", 1, imageCallbackRight);
 
   ros::spin();
   //cv::destroyWindow("view_left");

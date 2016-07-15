@@ -26,3 +26,4 @@ Compiled Object files
 *.exe
 *.out
 *.app
+data/

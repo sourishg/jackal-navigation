@@ -9,6 +9,7 @@
 #include <sensor_msgs/LaserScan.h>
 #include <sensor_msgs/Joy.h>
 #include <visualization_msgs/Marker.h>
+#include <ctime>
 
 using namespace std;
 using namespace cv;
@@ -22,9 +23,14 @@ ros::Publisher vel_pub;
 
 double forward_vel = 0., rot_vel = 0.;
 double trans_accel = 0.025;
+double trans_decel = 0.05;
 double rot_accel = 0.05;
 double max_forward_vel = 0.5;
 double max_rot_vel = 1.3;
+
+// declare clearances in front and side of the robot
+double clear_front = 1.7;
+double clear_side = 0.3;
 
 int last_dir = 0;
 
@@ -57,9 +63,6 @@ int checkObstacle() {
   int count = 0;
   int laser_pt_thresh = 7;
   int isObstacle = 0;
-  // declare clearances in front and side of the robot
-  double clear_front = 1.4;
-  double clear_side = 0.3;
   for (int i = 0; i < laserPoints.size(); i++) {    
     // check if laser points lie in safe region
     if (laserPoints[i].x > 0. && laserPoints[i].x < clear_front
@@ -76,8 +79,6 @@ int checkObstacle() {
 
 int chooseDirection() {
   int left_count = 0, right_count = 0;
-  double clear_front = 1.4;
-  double clear_side = 0.3;
   for (int i = 0; i < laserPoints.size(); i++) {
     if (laserPoints[i].x > 0. && laserPoints[i].x < clear_front) {
       if (laserPoints[i].y < 0) {
@@ -135,7 +136,8 @@ pair< double, double > stopInFrontMode(double side, double front) {
   return make_pair(desired_forward_vel, desired_rot_vel);
 }
 
-pair< double, double > obstacleAvoidMode() {
+pair< double, double > obstacleAvoidMode(double front) {
+  max_forward_vel = 1.0;
   double desired_forward_vel;
   double desired_rot_vel;
   int obst = checkObstacle();
@@ -143,15 +145,15 @@ pair< double, double > obstacleAvoidMode() {
     int dir = chooseDirection();
     last_dir = dir;
     if (dir == 1) {
-      desired_rot_vel = max_rot_vel * 0.95;
+      desired_rot_vel = max_rot_vel * 0.4;
     } else if (dir == 2) {
-      desired_rot_vel = max_rot_vel * 0.95 * (-1);
+      desired_rot_vel = max_rot_vel * 0.4 * (-1);
     } else {
       desired_rot_vel = max_rot_vel * 0.0;
     }
-    desired_forward_vel = max_forward_vel * 0.4;
+    desired_forward_vel = max_forward_vel * 0.0;
   } else {
-    desired_forward_vel = max_forward_vel * 0.95;
+    desired_forward_vel = max_forward_vel * max(0.4, front);
     desired_rot_vel = max_rot_vel * 0.0;
     last_dir = 0;
   }
@@ -169,7 +171,7 @@ void safeNavigate(const sensor_msgs::JoyConstPtr& msg) {
   if (R1 && R2) {
     desired_vel = stopInFrontMode(side, front);
   } else if (X) {
-    desired_vel = obstacleAvoidMode();
+    desired_vel = obstacleAvoidMode(front);
   } else {
     return;
   }
@@ -177,7 +179,7 @@ void safeNavigate(const sensor_msgs::JoyConstPtr& msg) {
   desired_forward_vel = desired_vel.first;
   desired_rot_vel = desired_vel.second;
   if (desired_forward_vel < forward_vel) {
-    forward_vel = max(desired_forward_vel, forward_vel - trans_accel);
+    forward_vel = max(desired_forward_vel, forward_vel - trans_decel);
   } else {
     forward_vel = min(desired_forward_vel, forward_vel + trans_accel);
   }
@@ -216,10 +218,10 @@ void laserScanCallback(const sensor_msgs::LaserScanConstPtr& msg) {
 int main(int argc, char** argv) {
   ros::init(argc, argv, "jackal_navigation");
   ros::NodeHandle nh;
-  ros::Subscriber sub_laser_scan = nh.subscribe("/webcam_left/obstacle_scan", 10, laserScanCallback);
-  ros::Subscriber sub_safe_drive = nh.subscribe("/bluetooth_teleop/joy", 10, safeNavigate);
-  marker_pub = nh.advertise<visualization_msgs::Marker>("visualize_laser", 10);
-  vel_pub = nh.advertise<geometry_msgs::Twist>("/jackal_velocity_controller/cmd_vel", 10);
+  ros::Subscriber sub_laser_scan = nh.subscribe("/webcam/left/obstacle_scan", 1, laserScanCallback);
+  ros::Subscriber sub_safe_drive = nh.subscribe("/bluetooth_teleop/joy", 1, safeNavigate);
+  marker_pub = nh.advertise<visualization_msgs::Marker>("visualize_laser", 1);
+  vel_pub = nh.advertise<geometry_msgs::Twist>("/jackal_velocity_controller/cmd_vel", 1);
   ros::spin();
   return 0;
 }
