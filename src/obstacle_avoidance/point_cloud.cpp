@@ -34,6 +34,7 @@ image_transport::Publisher disp_pub;
 ros::Publisher pcl_publisher;
 ros::Publisher obstacle_scan_publisher;
 ros::Publisher marker_pub;
+ros::Publisher time_log_publisher;
 
 jackal_nav::JackalTimeLog time_log;
 
@@ -151,6 +152,9 @@ void publishObstacleScan(vector< Point3d > points, uint32_t seq) {
     myfile.open(log_file.c_str(), ios::out | ios::app);
     myfile << elapsed_secs << endl;
     myfile.close();
+
+    time_log.obstacle_scan_time = elapsed_secs;
+    time_log_publisher.publish(time_log);
   }
 }
 
@@ -319,12 +323,18 @@ void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
   clock_t end = clock();
   double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
   if (logging) {
+    time_log.header.frame_id = "jackal";
+    time_log.header.seq = seq;
+    time_log.header.stamp = ros::Time::now();
+    
     ofstream myfile;
     string log_file = working_dir;
     log_file.append("data/point_cloud_time.txt");
     myfile.open(log_file.c_str(), ios::out | ios::app);
     myfile << elapsed_secs << endl;
     myfile.close();
+
+    time_log.pcl_time = elapsed_secs;
   }
   seq++;
 }
@@ -368,7 +378,9 @@ int main(int argc, char **argv)
   pcl_publisher = nh.advertise<sensor_msgs::PointCloud>("/webcam/left/point_cloud", 1);
   obstacle_scan_publisher = nh.advertise<sensor_msgs::LaserScan>("/webcam/left/obstacle_scan", 1);
   marker_pub = nh.advertise<visualization_msgs::Marker>("visualization_marker", 1);
-
+  if (logging) {
+    time_log_publisher = nh.advertise<jackal_nav::JackalTimeLog>("/Jackal/TimeLog", 1);
+  }
   //cv::namedWindow("view_left");
   //cv::namedWindow("view_right");
   //cv::namedWindow("view_disp");
