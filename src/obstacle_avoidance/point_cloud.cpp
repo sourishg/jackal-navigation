@@ -44,7 +44,7 @@ int im_height = 180;
 int crop_offset_x = 0;
 int crop_offset_y = 0;
 int crop_im_width = 270;
-int crop_im_height = 180;
+int crop_im_height = 90;
 const int INF = 1e9;
 uint32_t seq = 0;
 bool logging = true;
@@ -228,9 +228,9 @@ void publishPointCloud(Mat& show, uint32_t seq) {
 
 void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
 {
-  clock_t begin = clock();
   try
   {
+    clock_t begin = clock();
     //Mat tmp = cv_bridge::toCvShare(msg, "mono8")->image;
     Mat tmp = cv::imdecode(cv::Mat(msg->data), CV_LOAD_IMAGE_UNCHANGED);
     if (tmp.empty()) return;
@@ -289,6 +289,22 @@ void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
       filterDisparityMap();
     }
     */
+    clock_t end = clock();
+    double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
+    if (logging) {
+      time_log.header.frame_id = "jackal";
+      time_log.header.seq = seq;
+      time_log.header.stamp = ros::Time::now();
+      
+      ofstream myfile;
+      string log_file = working_dir;
+      log_file.append("data/dmap_time.txt");
+      myfile.open(log_file.c_str(), ios::out | ios::app);
+      myfile << elapsed_secs << endl;
+      myfile.close();
+
+      time_log.pcl_time = elapsed_secs;
+    }
     if (!show.empty()) {
       //filterDisparityMap(show);
       sensor_msgs::ImagePtr disp_msg;
@@ -298,7 +314,26 @@ void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
       //disp_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", dmaps.back()).toImageMsg();
       disp_pub.publish(disp_msg);
       //if (dmaps.size() < 2)
+      clock_t begin = clock();
+
       publishPointCloud(show, seq);
+      
+      clock_t end = clock();
+      double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
+      if (logging) {
+        time_log.header.frame_id = "jackal";
+        time_log.header.seq = seq;
+        time_log.header.stamp = ros::Time::now();
+        
+        ofstream myfile;
+        string log_file = working_dir;
+        log_file.append("data/point_cloud_time.txt");
+        myfile.open(log_file.c_str(), ios::out | ios::app);
+        myfile << elapsed_secs << endl;
+        myfile.close();
+
+        time_log.pcl_time = elapsed_secs;
+      }
       //else
       //publishPointCloud(dmaps.back());
       //imshow("view_disp", show);
@@ -319,22 +354,6 @@ void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
   }
   catch (cv_bridge::Exception& e)
   {
-  }
-  clock_t end = clock();
-  double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
-  if (logging) {
-    time_log.header.frame_id = "jackal";
-    time_log.header.seq = seq;
-    time_log.header.stamp = ros::Time::now();
-    
-    ofstream myfile;
-    string log_file = working_dir;
-    log_file.append("data/point_cloud_time.txt");
-    myfile.open(log_file.c_str(), ios::out | ios::app);
-    myfile << elapsed_secs << endl;
-    myfile.close();
-
-    time_log.pcl_time = elapsed_secs;
   }
   seq++;
 }
