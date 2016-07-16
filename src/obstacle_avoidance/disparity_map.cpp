@@ -31,7 +31,7 @@ string working_dir;
 
 bool inImg(int x, int y) {
   // check if pixel lies inside image
-  if (x >= 0 && x < show.cols && y >= 0 && y < show.rows)
+  if (x >= 0 && x < img1.cols && y >= 0 && y < img1.rows)
     return true;
 }
 
