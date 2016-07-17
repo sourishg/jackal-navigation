@@ -47,8 +47,10 @@ int crop_im_width = 270;
 int crop_im_height = 90;
 const int INF = 1e9;
 uint32_t seq = 0;
-bool logging = true;
 string working_dir;
+
+bool logging = true;
+bool gen_pcl = false;
 
 const double GP_HEIGHT_THRESH = 0.08; // group plane height threshold
 const double GP_ANGLE_THRESH = 4. * 3.1415 / 180.; // ground plane angular height threshold
@@ -158,7 +160,100 @@ void publishObstacleScan(vector< Point3d > points, uint32_t seq) {
   }
 }
 
+void publishObstacleScan(Mat& show, uint32_t seq) {
+  clock_t begin = clock();
+
+  double fov = 90.; // FOV for obstacle scan
+  int bin_size = 90; // Max number of obstacle points
+  double min_angle = 400, max_angle = -400;
+  double range_min = INF, range_max = -500;
+  double scan[bin_size];
+  sensor_msgs::LaserScan obstacle_scan;
+  obstacle_scan.header.seq = seq;
+  obstacle_scan.header.frame_id = "jackal";
+  obstacle_scan.header.stamp = ros::Time::now();
+  for (int i = 0; i < bin_size; i++) {
+    scan[i] = INF;
+  }
+  for (int i = 0; i < show.cols; i++) {
+    for (int j = 0; j < show.rows; j++) {
+      int d = show.at<uchar>(j,i);
+      if (d < 2) {
+        continue;
+      }
+      V.at<double>(0,0) = (double)(i + crop_offset_x);
+      V.at<double>(1,0) = (double)(j + crop_offset_y);
+      V.at<double>(2,0) = (double)d;
+      V.at<double>(3,0) = 1.;
+      pos = Q * V;
+      double X = pos.at<double>(0,0) / pos.at<double>(3,0);
+      double Y = pos.at<double>(1,0) / pos.at<double>(3,0);
+      double Z = pos.at<double>(2,0) / pos.at<double>(3,0);
+      Mat point3d_cam = Mat(3, 1, CV_64FC1);
+      point3d_cam.at<double>(0,0) = X;
+      point3d_cam.at<double>(1,0) = Y;
+      point3d_cam.at<double>(2,0) = Z;
+      Mat point3d_robot = XR * point3d_cam + XT;
+      X = point3d_robot.at<double>(0,0);
+      Y = point3d_robot.at<double>(1,0);
+      Z = point3d_robot.at<double>(2,0);
+      if (Z > ROBOT_HEIGHT || Z < 0.) {
+        continue;
+      }
+      if (X < GP_DIST_THRESH) {
+        if (Z < GP_HEIGHT_THRESH)
+          continue;
+      } else {
+        if (Z < GP_HEIGHT_THRESH + tan(GP_ANGLE_THRESH) * (X - GP_DIST_THRESH))
+          continue;
+      }
+      double theta_rad = atan2(Y, X);
+      double theta_deg = theta_rad * 180. / 3.1415;
+      min_angle = min(min_angle, theta_rad);
+      max_angle = max(max_angle, theta_rad);
+      double r = sqrt(Y*Y + X*X);
+      range_max = max(range_max, r);
+      range_min = min(range_min, r);
+      int k = floor((double)bin_size * (fov / 2. - theta_deg) / fov);
+      if (r < scan[k]) {
+        scan[k] = r;
+      }
+    }
+  }
+  obstacle_scan.angle_min = min_angle;
+  obstacle_scan.angle_max = max_angle;
+  obstacle_scan.range_min = range_min;
+  obstacle_scan.range_max = range_max;
+  obstacle_scan.angle_increment = 3.1415 / 180.;
+  obstacle_scan.scan_time = 0.001;
+  obstacle_scan.time_increment = 0.1;
+  for (int i = bin_size-1; i >= 0; i--) {
+    if (scan[i] < INF-1) {
+      obstacle_scan.ranges.push_back(scan[i]);
+    }
+  }
+  obstacle_scan_publisher.publish(obstacle_scan);
+  clock_t end = clock();
+  double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
+
+  if (logging && !gen_pcl) {
+    ofstream myfile;
+    string log_file = working_dir;
+    log_file.append("data/obstacle_scan_time.txt");
+    myfile.open(log_file.c_str(), ios::out | ios::app);
+    myfile << elapsed_secs << endl;
+    myfile.close();
+
+    time_log.obstacle_scan_time = elapsed_secs;
+    time_log_publisher.publish(time_log);
+  }
+}
+
 void publishPointCloud(Mat& show, uint32_t seq) {
+  if (!gen_pcl) {
+    publishObstacleScan(show, seq);
+    return;
+  }
   vector< Point3d > points;
   sensor_msgs::PointCloud pc;
   sensor_msgs::ChannelFloat32 ch;
@@ -320,7 +415,7 @@ void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
       
       clock_t end = clock();
       double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
-      if (logging) {
+      if (logging && gen_pcl) {
         time_log.header.frame_id = "jackal";
         time_log.header.seq = seq;
         time_log.header.stamp = ros::Time::now();
