@@ -23,6 +23,7 @@ using namespace std;
 using namespace cv;
 
 Mat img1, img2, leftim, rightim, leftim_res, rightim_res, show;
+Mat valid_disp;
 Mat R1, R2, P1, P2, Q;
 Mat K1, K2, R;
 Vec3d T;
@@ -50,7 +51,8 @@ uint32_t seq = 0;
 string working_dir;
 
 bool logging = true;
-bool gen_pcl = false;
+bool gen_pcl = true;
+bool dispValsCached = false;
 
 const double GP_HEIGHT_THRESH = 0.08; // group plane height threshold
 const double GP_ANGLE_THRESH = 4. * 3.1415 / 180.; // ground plane angular height threshold
@@ -61,6 +63,37 @@ bool inImg(int x, int y) {
   // check if pixel lies inside image
   if (x >= 0 && x < show.cols && y >= 0 && y < show.rows)
     return true;
+}
+
+void cacheDisparityValues() {
+  valid_disp = Mat(crop_im_height, crop_im_width, CV_8UC2, Scalar(255,0));
+  for (int i = 10; i < 11; i++) {
+    for (int j = 10; j < 11; j++) {
+      for (int d = 0; d <= 255; d++) {
+        V.at<double>(0,0) = (double)(i + crop_offset_x);
+        V.at<double>(1,0) = (double)(j + crop_offset_y);
+        V.at<double>(2,0) = (double)d;
+        V.at<double>(3,0) = 1.;
+        pos = Q * V;
+        double X = pos.at<double>(0,0) / pos.at<double>(3,0);
+        double Y = pos.at<double>(1,0) / pos.at<double>(3,0);
+        double Z = pos.at<double>(2,0) / pos.at<double>(3,0);
+        Mat point3d_cam = Mat(3, 1, CV_64FC1);
+        point3d_cam.at<double>(0,0) = X;
+        point3d_cam.at<double>(1,0) = Y;
+        point3d_cam.at<double>(2,0) = Z;
+        Mat point3d_robot = XR * point3d_cam + XT;
+        Z = point3d_robot.at<double>(2,0);
+        if (Z > ROBOT_HEIGHT || Z < 0.) {
+          continue;
+        }
+        valid_disp.at<Vec2b>(j,i)[0] = min(d, (int)valid_disp.at<Vec2b>(j,i)[0]);
+        valid_disp.at<Vec2b>(j,i)[1] = max(d, (int)valid_disp.at<Vec2b>(j,i)[1]);
+      }
+    }
+  }
+  cout << valid_disp.at<Vec2b>(10,10) << endl;
+  dispValsCached = true;
 }
 
 void visualizeCriticalRegion() {
@@ -178,6 +211,8 @@ void publishObstacleScan(Mat& show, uint32_t seq) {
   for (int i = 0; i < show.cols; i++) {
     for (int j = 0; j < show.rows; j++) {
       int d = show.at<uchar>(j,i);
+      if (d < valid_disp.at<Vec2b>(j,i)[0] || d > valid_disp.at<Vec2b>(j,i)[1])
+        continue;
       if (d < 2) {
         continue;
       }
@@ -254,6 +289,9 @@ void publishPointCloud(Mat& show, uint32_t seq) {
     publishObstacleScan(show, seq);
     return;
   }
+
+  clock_t begin = clock();
+
   vector< Point3d > points;
   sensor_msgs::PointCloud pc;
   sensor_msgs::ChannelFloat32 ch;
@@ -318,6 +356,24 @@ void publishPointCloud(Mat& show, uint32_t seq) {
   }
   pc.channels.push_back(ch);
   pcl_publisher.publish(pc);
+
+  clock_t end = clock();
+  double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
+  if (logging && gen_pcl) {
+    time_log.header.frame_id = "jackal";
+    time_log.header.seq = seq;
+    time_log.header.stamp = ros::Time::now();
+    
+    ofstream myfile;
+    string log_file = working_dir;
+    log_file.append("data/point_cloud_time.txt");
+    myfile.open(log_file.c_str(), ios::out | ios::app);
+    myfile << elapsed_secs << endl;
+    myfile.close();
+
+    time_log.pcl_time = elapsed_secs;
+  }
+
   publishObstacleScan(points, seq);
 }
 
@@ -409,26 +465,9 @@ void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
       //disp_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", dmaps.back()).toImageMsg();
       disp_pub.publish(disp_msg);
       //if (dmaps.size() < 2)
-      clock_t begin = clock();
 
       publishPointCloud(show, seq);
       
-      clock_t end = clock();
-      double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
-      if (logging && gen_pcl) {
-        time_log.header.frame_id = "jackal";
-        time_log.header.seq = seq;
-        time_log.header.stamp = ros::Time::now();
-        
-        ofstream myfile;
-        string log_file = working_dir;
-        log_file.append("data/point_cloud_time.txt");
-        myfile.open(log_file.c_str(), ios::out | ios::app);
-        myfile << elapsed_secs << endl;
-        myfile.close();
-
-        time_log.pcl_time = elapsed_secs;
-      }
       //else
       //publishPointCloud(dmaps.back());
       //imshow("view_disp", show);
@@ -528,6 +567,8 @@ int main(int argc, char **argv)
   cv::initUndistortRectifyMap(K1, D1, R1, P1, img1.size(), CV_32F, lmapx, lmapy);
   cv::initUndistortRectifyMap(K2, D2, R2, P2, img2.size(), CV_32F, rmapx, rmapy);
 
+  if (!dispValsCached)
+    cacheDisparityValues();
   //cv::startWindowThread();
   ros::Subscriber subl = nh.subscribe("/webcam/left/image_raw/compressed", 1, imageCallbackLeft);
   ros::Subscriber subr = nh.subscribe("/webcam/right/image_raw/compressed", 1, imageCallbackRight);
