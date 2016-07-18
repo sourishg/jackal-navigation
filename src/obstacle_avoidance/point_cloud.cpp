@@ -52,9 +52,8 @@ string working_dir;
 
 bool logging = true;
 bool gen_pcl = false;
-bool dispValsCached = false;
 
-const double GP_HEIGHT_THRESH = 0.04; // group plane height threshold
+const double GP_HEIGHT_THRESH = 0.06; // group plane height threshold
 const double GP_ANGLE_THRESH = 4. * 3.1415 / 180.; // ground plane angular height threshold
 const double GP_DIST_THRESH = 0.8; // starting distance for angular threshold
 const double ROBOT_HEIGHT = 0.4;
@@ -103,7 +102,6 @@ void cacheDisparityValues() {
       valid_disp.at<Vec2b>(j,i)[1] = 255;
     }
   }
-  dispValsCached = true;
   cout << "Values cached!" << endl;
 }
 
@@ -565,8 +563,7 @@ int main(int argc, char **argv)
   cv::initUndistortRectifyMap(K1, D1, R1, P1, img1.size(), CV_32F, lmapx, lmapy);
   cv::initUndistortRectifyMap(K2, D2, R2, P2, img2.size(), CV_32F, rmapx, rmapy);
 
-  if (!dispValsCached)
-    cacheDisparityValues();
+  cacheDisparityValues();
   //cv::startWindowThread();
   ros::Subscriber subl = nh.subscribe("/webcam/left/image_raw/compressed", 1, imageCallbackLeft);
   ros::Subscriber subr = nh.subscribe("/webcam/right/image_raw/compressed", 1, imageCallbackRight);
