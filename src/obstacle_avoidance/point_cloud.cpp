@@ -51,13 +51,13 @@ uint32_t seq = 0;
 string working_dir;
 
 bool logging = true;
-bool gen_pcl = true;
+bool gen_pcl = false;
 bool dispValsCached = false;
 
-const double GP_HEIGHT_THRESH = 0.08; // group plane height threshold
+const double GP_HEIGHT_THRESH = 0.04; // group plane height threshold
 const double GP_ANGLE_THRESH = 4. * 3.1415 / 180.; // ground plane angular height threshold
 const double GP_DIST_THRESH = 0.8; // starting distance for angular threshold
-const double ROBOT_HEIGHT = 0.5;
+const double ROBOT_HEIGHT = 0.4;
 
 bool inImg(int x, int y) {
   // check if pixel lies inside image
@@ -66,10 +66,11 @@ bool inImg(int x, int y) {
 }
 
 void cacheDisparityValues() {
-  valid_disp = Mat(crop_im_height, crop_im_width, CV_8UC2, Scalar(255,0));
-  for (int i = 10; i < 11; i++) {
-    for (int j = 10; j < 11; j++) {
-      for (int d = 0; d <= 255; d++) {
+  valid_disp = Mat(crop_im_height, crop_im_width, CV_8UC2, Scalar(255,3));
+  for (int i = 0; i < crop_im_width; i++) {
+    for (int j = 0; j < crop_im_height; j++) {
+      int d;
+      for (d = 3; d <= 255; d++) {
         V.at<double>(0,0) = (double)(i + crop_offset_x);
         V.at<double>(1,0) = (double)(j + crop_offset_y);
         V.at<double>(2,0) = (double)d;
@@ -83,17 +84,27 @@ void cacheDisparityValues() {
         point3d_cam.at<double>(1,0) = Y;
         point3d_cam.at<double>(2,0) = Z;
         Mat point3d_robot = XR * point3d_cam + XT;
+        X = point3d_robot.at<double>(0,0);
+        Y = point3d_robot.at<double>(1,0);
         Z = point3d_robot.at<double>(2,0);
         if (Z > ROBOT_HEIGHT || Z < 0.) {
           continue;
         }
-        valid_disp.at<Vec2b>(j,i)[0] = min(d, (int)valid_disp.at<Vec2b>(j,i)[0]);
-        valid_disp.at<Vec2b>(j,i)[1] = max(d, (int)valid_disp.at<Vec2b>(j,i)[1]);
+        if (X < GP_DIST_THRESH) {
+          if (Z < GP_HEIGHT_THRESH)
+            continue;
+        } else {
+          if (Z < GP_HEIGHT_THRESH + tan(GP_ANGLE_THRESH) * (X - GP_DIST_THRESH))
+            continue;
+        }
+        break;
       }
+      valid_disp.at<Vec2b>(j,i)[0] = d;
+      valid_disp.at<Vec2b>(j,i)[1] = 255;
     }
   }
-  cout << valid_disp.at<Vec2b>(10,10) << endl;
   dispValsCached = true;
+  cout << "Values cached!" << endl;
 }
 
 void visualizeCriticalRegion() {
@@ -213,9 +224,6 @@ void publishObstacleScan(Mat& show, uint32_t seq) {
       int d = show.at<uchar>(j,i);
       if (d < valid_disp.at<Vec2b>(j,i)[0] || d > valid_disp.at<Vec2b>(j,i)[1])
         continue;
-      if (d < 2) {
-        continue;
-      }
       V.at<double>(0,0) = (double)(i + crop_offset_x);
       V.at<double>(1,0) = (double)(j + crop_offset_y);
       V.at<double>(2,0) = (double)d;
@@ -232,16 +240,6 @@ void publishObstacleScan(Mat& show, uint32_t seq) {
       X = point3d_robot.at<double>(0,0);
       Y = point3d_robot.at<double>(1,0);
       Z = point3d_robot.at<double>(2,0);
-      if (Z > ROBOT_HEIGHT || Z < 0.) {
-        continue;
-      }
-      if (X < GP_DIST_THRESH) {
-        if (Z < GP_HEIGHT_THRESH)
-          continue;
-      } else {
-        if (Z < GP_HEIGHT_THRESH + tan(GP_ANGLE_THRESH) * (X - GP_DIST_THRESH))
-          continue;
-      }
       double theta_rad = atan2(Y, X);
       double theta_deg = theta_rad * 180. / 3.1415;
       min_angle = min(min_angle, theta_rad);
@@ -454,7 +452,7 @@ void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
       myfile << elapsed_secs << endl;
       myfile.close();
 
-      time_log.pcl_time = elapsed_secs;
+      time_log.dmap_time = elapsed_secs;
     }
     if (!show.empty()) {
       //filterDisparityMap(show);
