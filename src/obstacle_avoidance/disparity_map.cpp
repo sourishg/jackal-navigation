@@ -4,6 +4,7 @@
 #include <opencv2/calib3d/calib3d.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/features2d/features2d.hpp>
 #include <ctime>
 #include <fstream>
 #include <string>
@@ -38,13 +39,81 @@ bool inImg(int x, int y) {
 void load_images(Mat& img_left, Mat& img_right) {
   Mat tmp1, tmp2;
   string left_file = working_dir;
-  left_file.append("data/imgs/left1.jpg");
+  left_file.append("data/imgs/left15.jpg");
   tmp1 = imread(left_file, 1);
   string right_file = working_dir;
-  right_file.append("data/imgs/right1.jpg");
+  right_file.append("data/imgs/right15.jpg");
   tmp2 = imread(right_file, 1);
   cv::remap(tmp1, img_left, lmapx, lmapy, cv::INTER_LINEAR);
   cv::remap(tmp2, img_right, rmapx, rmapy, cv::INTER_LINEAR);
+}
+
+void matchFeatures(Mat& left, Mat& right) {
+  clock_t begin = clock();
+
+  OrbFeatureDetector detector(500, 1.2f, 8, 15, 0);
+  vector< KeyPoint > left_kpts, right_kpts;
+  Mat left_desc, right_desc;
+  detector.detect(img1, left_kpts);
+  detector.compute(img1, left_kpts, left_desc);
+  detector.detect(img2, right_kpts);
+  detector.compute(img2, right_kpts, right_desc);
+  //drawKeypoints(left, left_kpts, left, Scalar(255,0,0));
+  //drawKeypoints(right, right_kpts, right, Scalar(255,0,0));
+  cv::Mat results;
+  cv::Mat dists;
+  int k=2; // find the 2 nearest neighbors
+  if(left_desc.type()==CV_8U)
+  {
+      // Binary descriptors detected (from ORB or Brief)
+
+      // Create Flann LSH index
+      cv::flann::Index flannIndex(right_desc, cv::flann::LshIndexParams(12, 20, 2), cvflann::FLANN_DIST_HAMMING);
+
+      // search (nearest neighbor)
+      flannIndex.knnSearch(left_desc, results, dists, k, cv::flann::SearchParams() );
+  }
+  else
+  {
+      // assume it is CV_32F
+      // Create Flann KDTree index
+      cv::flann::Index flannIndex(right_desc, cv::flann::KDTreeIndexParams(), cvflann::FLANN_DIST_EUCLIDEAN);
+
+      // search (nearest neighbor)
+      flannIndex.knnSearch(left_desc, results, dists, k, cv::flann::SearchParams() );
+  }
+
+  // Conversion to CV_32F if needed
+  if(dists.type() == CV_32S)
+  {
+      cv::Mat temp;
+      dists.convertTo(temp, CV_32F);
+      dists = temp;
+  }
+  //drawKeypoints(img1, img1_keypts, Kimg1, Scalar(255,0,0));
+  //drawKeypoints(img2, img2_keypts, Kimg2, Scalar(255,0,0));
+  
+  float nndrRatio = 0.9;
+  vector<Point2f> mpts_1, mpts_2; // Used for homography
+  for(unsigned int i=0; i<results.rows; ++i)
+  {
+      // Check if this descriptor matches with those of the objects
+      // Apply NNDR
+      if(results.at<int>(i,0) >= 0 && results.at<int>(i,1) >= 0 && dists.at<float>(i,0) <= nndrRatio * dists.at<float>(i,1))
+      {
+          mpts_1.push_back(left_kpts.at(i).pt);
+
+          mpts_2.push_back(right_kpts.at(results.at<int>(i,0)).pt);
+      }
+  }
+  for (int i = 0; i < mpts_1.size(); i++) {
+    circle(left, mpts_1[i], 3, Scalar(255,0,0), 2);
+    circle(right, mpts_2[i], 3, Scalar(255,0,0), 2);
+  }
+  clock_t end = clock();
+  double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
+  cout << elapsed_secs << endl;
+  cout << mpts_1.size() << endl;
 }
 
 int main(int argc, char **argv)
@@ -79,6 +148,7 @@ int main(int argc, char **argv)
   cv::initUndistortRectifyMap(K2, D2, R2, P2, img2.size(), CV_32F, rmapx, rmapy);
 
   load_images(img1, img2);
+  matchFeatures(img1, img2);
 
   while (1) {
     imshow("view_left", img1);
