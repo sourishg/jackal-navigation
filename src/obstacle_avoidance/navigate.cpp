@@ -136,6 +136,17 @@ pair< double, double > stopInFrontMode(double side, double front) {
   return make_pair(desired_forward_vel, desired_rot_vel);
 }
 
+pair< double, double > stopInFrontMode() {
+  max_forward_vel = 1.0;
+  double desired_forward_vel = max_forward_vel * 0.5;
+  double desired_rot_vel = 0.0;
+  int dir = checkObstacle();
+  if (dir == 1) {
+    desired_forward_vel = min(desired_forward_vel, 0.);
+  }
+  return make_pair(desired_forward_vel, desired_rot_vel);
+}
+
 pair< double, double > obstacleAvoidMode(double front) {
   max_forward_vel = 1.0;
   double desired_forward_vel;
@@ -164,12 +175,15 @@ void safeNavigate(const sensor_msgs::JoyConstPtr& msg) {
   int R2 = msg->buttons[9];
   int R1 = msg->buttons[11];
   int X = msg->buttons[14];
+  int triangle = msg->buttons[12];
   double side = msg->axes[0];
   double front = msg->axes[1];
   double desired_forward_vel, desired_rot_vel;
   pair< double, double > desired_vel;
   if (R1 && R2) {
     desired_vel = stopInFrontMode(side, front);
+  } else if (triangle) {
+    desired_vel = stopInFrontMode();
   } else if (X) {
     desired_vel = obstacleAvoidMode(front);
   } else {
