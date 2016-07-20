@@ -45,18 +45,18 @@ int im_height = 180;
 int crop_offset_x = 0;
 int crop_offset_y = 0;
 int crop_im_width = 270;
-int crop_im_height = 90;
+int crop_im_height = 180;
 const int INF = 1e9;
 uint32_t seq = 0;
 string working_dir;
 
-bool logging = true;
-bool gen_pcl = false;
+bool logging = false;
+bool gen_pcl = true;
 
 const double GP_HEIGHT_THRESH = 0.06; // group plane height threshold
 const double GP_ANGLE_THRESH = 4. * 3.1415 / 180.; // ground plane angular height threshold
-const double GP_DIST_THRESH = 0.8; // starting distance for angular threshold
-const double ROBOT_HEIGHT = 0.4;
+const double GP_DIST_THRESH = 1.0; // starting distance for angular threshold
+const double ROBOT_HEIGHT = 0.34;
 
 bool inImg(int x, int y) {
   // check if pixel lies inside image

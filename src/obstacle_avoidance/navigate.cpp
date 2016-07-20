@@ -29,8 +29,9 @@ double max_forward_vel = 0.5;
 double max_rot_vel = 1.3;
 
 // declare clearances in front and side of the robot
-double clear_front = 1.7;
+double clear_front = 1.5;
 double clear_side = 0.3;
+int laser_pt_thresh = 9;
 
 int last_dir = 0;
 
@@ -61,7 +62,6 @@ void visualizeLaserPoints() {
 
 int checkObstacle() {
   int count = 0;
-  int laser_pt_thresh = 7;
   int isObstacle = 0;
   for (int i = 0; i < laserPoints.size(); i++) {    
     // check if laser points lie in safe region
