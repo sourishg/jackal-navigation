@@ -29,9 +29,9 @@ double max_forward_vel = 0.5;
 double max_rot_vel = 1.3;
 
 // declare clearances in front and side of the robot
-double clear_front = 1.5;
+double clear_front = 0.24 + 1.5;
 double clear_side = 0.3;
-int laser_pt_thresh = 9;
+int laser_pt_thresh = 12;
 
 int last_dir = 0;
 
@@ -73,7 +73,13 @@ int checkObstacle() {
   // spatial filter
   if (count > laser_pt_thresh) {
     isObstacle = 1;
+  } else {
+    if (count > 0.9 * (double)laserPoints.size()) {
+      isObstacle = 1;
+    }
   }
+  //string stat = (isObstacle == 1) ? "Y" : "N";
+  //cout << count << ", " << laserPoints.size() << ", " << stat << endl;
   return isObstacle;
 }
 
@@ -227,6 +233,7 @@ void laserScanCallback(const sensor_msgs::LaserScanConstPtr& msg) {
     laserPoints[i].y = msg->ranges[i] * sin(angle);
   }
   visualizeLaserPoints();
+  checkObstacle();
 }
 
 int main(int argc, char** argv) {
