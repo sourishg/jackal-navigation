@@ -85,7 +85,7 @@ int checkObstacle() {
   }
   if (closestObst < 0.6)
     isObstacle = 1;
-  if (commands.size() < 10) {
+  if (commands.size() < 20) {
     commands.push_back(isObstacle);
   } else {
     commands.pop_front();
@@ -99,7 +99,7 @@ int checkObstacle() {
     else
       zero++;
   }
-  if (one > commands.size() / 2)
+  if (one > 1)
     isObstacle = 1;
   string stat = (isObstacle == 1) ? "Y" : "N";
   cout << count << ", " << laserPoints.size() << ", " << stat << ", " << closestObst << endl;
