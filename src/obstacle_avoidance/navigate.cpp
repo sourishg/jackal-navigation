@@ -10,6 +10,7 @@
 #include <sensor_msgs/Joy.h>
 #include <visualization_msgs/Marker.h>
 #include <ctime>
+#include <deque>
 
 using namespace std;
 using namespace cv;
@@ -31,8 +32,9 @@ double max_rot_vel = 1.3;
 // declare clearances in front and side of the robot
 double clear_front = 0.24 + 1.5;
 double clear_side = 0.3;
-int laser_pt_thresh = 12;
+int laser_pt_thresh = 8;
 
+deque< int > commands;
 int last_dir = 0;
 
 const int INF = 1e9;
@@ -63,8 +65,11 @@ void visualizeLaserPoints() {
 int checkObstacle() {
   int count = 0;
   int isObstacle = 0;
+  double closestObst = INF;
   for (int i = 0; i < laserPoints.size(); i++) {    
     // check if laser points lie in safe region
+    double dist = sqrt(laserPoints[i].x*laserPoints[i].x + laserPoints[i].y*laserPoints[i].y);
+    closestObst = min(closestObst, dist);
     if (laserPoints[i].x > 0. && laserPoints[i].x < clear_front
         && laserPoints[i].y > -clear_side && laserPoints[i].y < clear_side) {
       count++;
@@ -74,12 +79,30 @@ int checkObstacle() {
   if (count > laser_pt_thresh) {
     isObstacle = 1;
   } else {
-    if (count > 0.9 * (double)laserPoints.size()) {
+    if (count > 0.5 * (double)laserPoints.size()) {
       isObstacle = 1;
     }
   }
-  //string stat = (isObstacle == 1) ? "Y" : "N";
-  //cout << count << ", " << laserPoints.size() << ", " << stat << endl;
+  if (closestObst < 0.6)
+    isObstacle = 1;
+  if (commands.size() < 10) {
+    commands.push_back(isObstacle);
+  } else {
+    commands.pop_front();
+    commands.push_back(isObstacle);
+  }
+  deque< int >::iterator it;
+  int one = 0, zero = 0;
+  for (it = commands.begin(); it != commands.end(); it++) {
+    if ((*it) == 1)
+      one++;
+    else
+      zero++;
+  }
+  if (one > commands.size() / 2)
+    isObstacle = 1;
+  string stat = (isObstacle == 1) ? "Y" : "N";
+  cout << count << ", " << laserPoints.size() << ", " << stat << ", " << closestObst << endl;
   return isObstacle;
 }
 
