@@ -42,9 +42,15 @@ const int INF = 1e9;
 
 typedef struct dat {
   double x, y, theta;
+  double dist(dat p) {
+    return sqrt((x - p.x)*(x - p.x) + (y - p.y)*(y - p.y));
+  }
 } Pose;
 
 Pose jackal_pos;
+Pose current_waypoint;
+bool reached_waypoint = false;
+bool is_set_waypoint = false;
 
 void visualizeLaserPoints() {
   // visualize laser points from obstacle scan as Marker points
@@ -205,6 +211,54 @@ pair< double, double > obstacleAvoidMode(double front) {
     last_dir = 0;
   }
   return make_pair(desired_forward_vel, desired_rot_vel);
+}
+
+pair< double, double > changeOrientation(double theta) {
+  double desired_forward_vel = 0.;
+  double desired_rot_vel;
+  if (jackal_pos.theta < theta) {
+    desired_rot_vel = max_rot_vel * 0.4;
+  } else {
+    desired_rot_vel = max_rot_vel * 0.4 * (-1);
+  }
+  return make_pair(desired_forward_vel, desired_rot_vel);
+}
+
+pair< double, double > goToWayPoint(Pose wayPoint, double front) {
+  max_forward_vel = 1.0;
+  pair< double, double > ret_vel;
+  double dist = wayPoint.dist(jackal_pos);
+  double theta = atan((wayPoint.y - jackal_pos.y) / (wayPoint.x - jackal_pos.x));
+  if (dist < 0.1) {
+    reached_waypoint = true;
+    ret_vel = make_pair(0.,0.);
+  } else if (abs(jackal_pos.theta - theta) > 0.1) {
+    ret_vel = changeOrientation(theta);
+  } else {
+    ret_vel.first = max_forward_vel * max(0.4, front);
+    ret_vel.second = 0.;
+  }
+  return ret_vel;
+}
+
+void setWayPoint(Pose& wayPoint, double dist) {
+  wayPoint.x = jackal_pos.x + 2 * cos(jackal_pos.theta);
+  wayPoint.y = jackal_pos.y + 2 * sin(jackal_pos.theta);
+  wayPoint.theta = 0.;
+}
+
+pair< double, double > autoNavigateMode(double front) {
+  pair< double, double > ret_vel;
+  ret_vel = make_pair(0.,0.);
+  Pose final_pos;
+  if (!is_set_waypoint) {
+    setWayPoint(final_pos, 2.);
+    is_set_waypoint = true;
+  }
+  if (!reached_waypoint) {
+    ret_vel = goToWayPoint(final_pos, front);
+  }
+  return ret_vel;
 }
 
 void safeNavigate(const sensor_msgs::JoyConstPtr& msg) {
