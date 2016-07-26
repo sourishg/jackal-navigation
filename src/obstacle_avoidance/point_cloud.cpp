@@ -18,6 +18,7 @@
 #include <string>
 #include "elas.h"
 #include "image.h"
+#include "popt_pp.h"
 
 using namespace std;
 using namespace cv;
@@ -51,7 +52,7 @@ uint32_t seq = 0;
 string working_dir;
 
 bool logging = false;
-bool gen_pcl = true;
+bool gen_pcl = false;
 
 const double GP_HEIGHT_THRESH = 0.06; // group plane height threshold
 const double GP_ANGLE_THRESH = 4. * 3.1415 / 180.; // ground plane angular height threshold
@@ -440,16 +441,31 @@ int main(int argc, char **argv)
 {
   ros::init(argc, argv, "jackal_obstacle_avoidance");
   ros::NodeHandle nh;
+
+  char* work_dir;
+  
+  static struct poptOption options[] = {
+    { "work-dir",'w',POPT_ARG_STRING,&work_dir,0,"Working directory","STR" },
+    { "logging",'l',POPT_ARG_NONE,&logging,0,"Log pipeline time","NONE" },
+    { "gen-pcl",'p',POPT_ARG_NONE,&gen_pcl,0,"Generate PCL","NONE" },
+    POPT_AUTOHELP
+    { NULL, 0, 0, NULL, 0, NULL, NULL }
+  };
+
+  POpt popt(NULL, argc, argv, options, 0);
+  int c;
+  while((c = popt.getNextOpt()) >= 0) {}
+
   image_transport::ImageTransport it(nh);
   disp_pub = it.advertise("/webcam/left/depth_map", 1);
   pcl_publisher = nh.advertise<sensor_msgs::PointCloud>("/webcam/left/point_cloud", 1);
   obstacle_scan_publisher = nh.advertise<sensor_msgs::LaserScan>("/webcam/left/obstacle_scan", 1);
   marker_pub = nh.advertise<visualization_msgs::Marker>("visualization_marker", 1);
   if (logging) {
-    time_log_publisher = nh.advertise<jackal_nav::JackalTimeLog>("/Jackal/TimeLog", 1);
+    time_log_publisher = nh.advertise<jackal_nav::JackalTimeLog>("/jackal/time_log", 1);
   }
   
-  working_dir = argv[1];
+  working_dir = work_dir;
   string calib_file = working_dir;
   calib_file.append("src/calibration/stereo_calib.yml");
   cv::FileStorage fs1(calib_file.c_str(), cv::FileStorage::READ);

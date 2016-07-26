@@ -218,5 +218,5 @@ target_link_libraries(disparity_map ${catkin_LIBRARIES} ${OpenCV_LIBS})
 add_dependencies(disparity_map jackal_nav_generate_messages_cpp)
 
 add_executable(point_cloud ${LIBELAS_SRC_FILES} src/obstacle_avoidance/point_cloud.cpp)
-target_link_libraries(point_cloud ${catkin_LIBRARIES} ${OpenCV_LIBS})
+target_link_libraries(point_cloud ${catkin_LIBRARIES} ${OpenCV_LIBS} "-lpopt")
 add_dependencies(point_cloud jackal_nav_generate_messages_cpp)
