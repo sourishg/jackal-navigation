@@ -12,6 +12,7 @@
 #include <ctime>
 #include <deque>
 #include <geometry_msgs/Pose.h>
+#include "popt_pp.h"
 
 using namespace std;
 using namespace cv;
@@ -27,7 +28,7 @@ double forward_vel = 0., rot_vel = 0.;
 double trans_accel = 0.025;
 double trans_decel = 0.05;
 double rot_accel = 0.05;
-double max_forward_vel = 0.5;
+double max_forward_vel = 0.6;
 double max_rot_vel = 1.3;
 
 // declare clearances in front and side of the robot
@@ -182,7 +183,6 @@ pair< double, double > stopInFrontMode(double side, double front) {
 }
 
 pair< double, double > stopInFrontMode() {
-  max_forward_vel = 1.0;
   double desired_forward_vel = max_forward_vel * 1.0;
   double desired_rot_vel = 0.0;
   int dir = checkObstacle();
@@ -193,7 +193,6 @@ pair< double, double > stopInFrontMode() {
 }
 
 pair< double, double > obstacleAvoidMode(double front) {
-  max_forward_vel = 1.0;
   double desired_forward_vel;
   double desired_rot_vel;
   int obst = checkObstacle();
@@ -228,7 +227,6 @@ pair< double, double > changeOrientation(double theta) {
 }
 
 pair< double, double > goToWayPoint(Pose wayPoint, double front) {
-  max_forward_vel = 1.0;
   pair< double, double > ret_vel;
   double dist = wayPoint.dist(jackal_pos);
   double theta = atan((wayPoint.y - jackal_pos.y) / (wayPoint.x - jackal_pos.x));
@@ -336,6 +334,18 @@ void getCurrentPose(const geometry_msgs::PoseConstPtr& msg) {
 int main(int argc, char** argv) {
   ros::init(argc, argv, "jackal_navigation");
   ros::NodeHandle nh;
+
+  static struct poptOption options[] = {
+    { "max-forward-vel",'f',POPT_ARG_FLOAT,&max_forward_vel,0,"Max forward velocity","NUM" },
+    { "laser-thresh",'l',POPT_ARG_INT,&laser_pt_thresh,0,"Threshold for obstacle scan","NUM" },
+    POPT_AUTOHELP
+    { NULL, 0, 0, NULL, 0, NULL, NULL }
+  };
+
+  POpt popt(NULL, argc, argv, options, 0);
+  int c;
+  while((c = popt.getNextOpt()) >= 0) {}
+
   ros::Subscriber sub_laser_scan = nh.subscribe("/webcam/left/obstacle_scan", 1, laserScanCallback);
   ros::Subscriber sub_safe_drive = nh.subscribe("/bluetooth_teleop/joy", 1, safeNavigate);
   ros::Subscriber sub_cur_pose = nh.subscribe("/jackal/pose_estimate", 1, getCurrentPose);
