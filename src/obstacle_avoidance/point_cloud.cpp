@@ -18,6 +18,7 @@
 #include <string>
 #include "elas.h"
 #include "image.h"
+#include "popt_pp.h"
 
 using namespace std;
 using namespace cv;
@@ -48,10 +49,13 @@ int crop_im_width = 270;
 int crop_im_height = 90;
 const int INF = 1e9;
 uint32_t seq = 0;
-string working_dir;
 
+char* calib_file;
+char* dmap_time_file;
+char* pcl_time_file;
+char* obst_scan_time_file;
 bool logging = false;
-bool gen_pcl = true;
+bool gen_pcl = false;
 
 const double GP_HEIGHT_THRESH = 0.06; // group plane height threshold
 const double GP_ANGLE_THRESH = 4. * 3.1415 / 180.; // ground plane angular height threshold
@@ -102,7 +106,7 @@ void cacheDisparityValues() {
       valid_disp.at<Vec2b>(j,i)[1] = 255;
     }
   }
-  cout << "Values cached!" << endl;
+  cout << "Disparity values cached!" << endl;
 }
 
 void publishObstacleScan(vector< Point3d > points, uint32_t seq) {
@@ -158,9 +162,7 @@ void publishObstacleScan(vector< Point3d > points, uint32_t seq) {
   double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
   if (logging) {
     ofstream myfile;
-    string log_file = working_dir;
-    log_file.append("data/obstacle_scan_time.txt");
-    myfile.open(log_file.c_str(), ios::out | ios::app);
+    myfile.open(obst_scan_time_file, ios::out | ios::app);
     myfile << elapsed_secs << endl;
     myfile.close();
 
@@ -236,9 +238,7 @@ void publishObstacleScan(Mat& show, uint32_t seq) {
 
   if (logging && !gen_pcl) {
     ofstream myfile;
-    string log_file = working_dir;
-    log_file.append("data/obstacle_scan_time.txt");
-    myfile.open(log_file.c_str(), ios::out | ios::app);
+    myfile.open(obst_scan_time_file, ios::out | ios::app);
     myfile << elapsed_secs << endl;
     myfile.close();
 
@@ -326,11 +326,8 @@ void publishPointCloud(Mat& show, uint32_t seq) {
     time_log.header.frame_id = "jackal";
     time_log.header.seq = seq;
     time_log.header.stamp = ros::Time::now();
-    
     ofstream myfile;
-    string log_file = working_dir;
-    log_file.append("data/point_cloud_time.txt");
-    myfile.open(log_file.c_str(), ios::out | ios::app);
+    myfile.open(pcl_time_file, ios::out | ios::app);
     myfile << elapsed_secs << endl;
     myfile.close();
 
@@ -400,11 +397,8 @@ void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
       time_log.header.frame_id = "jackal";
       time_log.header.seq = seq;
       time_log.header.stamp = ros::Time::now();
-      
       ofstream myfile;
-      string log_file = working_dir;
-      log_file.append("data/dmap_time.txt");
-      myfile.open(log_file.c_str(), ios::out | ios::app);
+      myfile.open(dmap_time_file, ios::out | ios::app);
       myfile << elapsed_secs << endl;
       myfile.close();
 
@@ -440,19 +434,33 @@ int main(int argc, char **argv)
 {
   ros::init(argc, argv, "jackal_obstacle_avoidance");
   ros::NodeHandle nh;
+  
+  static struct poptOption options[] = {
+    { "img-height",'h',POPT_ARG_INT,&crop_im_height,0,"Image height","NUM" },
+    { "calib-file",'c',POPT_ARG_STRING,&calib_file,0,"Stereo calibration file","STR" },
+    { "logging",'l',POPT_ARG_NONE,&logging,0,"Log pipeline time","NONE" },
+    { "gen-pcl",'g',POPT_ARG_NONE,&gen_pcl,0,"Generate PCL","NONE" },
+    { "dmap-file",'d',POPT_ARG_STRING,&dmap_time_file,0,"DMAP time file","STR" },
+    { "pcl-file",'p',POPT_ARG_STRING,&pcl_time_file,0,"PCL time file","STR" },
+    { "scan-file",'s',POPT_ARG_STRING,&obst_scan_time_file,0,"Scan time file","STR" },
+    POPT_AUTOHELP
+    { NULL, 0, 0, NULL, 0, NULL, NULL }
+  };
+
+  POpt popt(NULL, argc, argv, options, 0);
+  int c;
+  while((c = popt.getNextOpt()) >= 0) {}
+
   image_transport::ImageTransport it(nh);
   disp_pub = it.advertise("/webcam/left/depth_map", 1);
   pcl_publisher = nh.advertise<sensor_msgs::PointCloud>("/webcam/left/point_cloud", 1);
   obstacle_scan_publisher = nh.advertise<sensor_msgs::LaserScan>("/webcam/left/obstacle_scan", 1);
   marker_pub = nh.advertise<visualization_msgs::Marker>("visualization_marker", 1);
   if (logging) {
-    time_log_publisher = nh.advertise<jackal_nav::JackalTimeLog>("/Jackal/TimeLog", 1);
+    time_log_publisher = nh.advertise<jackal_nav::JackalTimeLog>("/jackal/time_log", 1);
   }
   
-  working_dir = argv[1];
-  string calib_file = working_dir;
-  calib_file.append("src/calibration/stereo_calib.yml");
-  cv::FileStorage fs1(calib_file.c_str(), cv::FileStorage::READ);
+  cv::FileStorage fs1(calib_file, cv::FileStorage::READ);
   fs1["K1"] >> K1;
   fs1["K2"] >> K2;
   fs1["D1"] >> D1;
@@ -479,7 +487,8 @@ int main(int argc, char **argv)
   cv::initUndistortRectifyMap(K1, D1, R1, P1, img1.size(), CV_32F, lmapx, lmapy);
   cv::initUndistortRectifyMap(K2, D2, R2, P2, img2.size(), CV_32F, rmapx, rmapy);
 
-  cacheDisparityValues();
+  if (!gen_pcl)
+    cacheDisparityValues();
 
   ros::Subscriber subl = nh.subscribe("/webcam/left/image_raw/compressed", 1, imageCallbackLeft);
   ros::Subscriber subr = nh.subscribe("/webcam/right/image_raw/compressed", 1, imageCallbackRight);

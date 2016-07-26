@@ -206,7 +206,7 @@ include_directories("${LIBELAS_SRC_DIR}")
 FILE(GLOB LIBELAS_SRC_FILES "src/elas/*.cpp")
 
 add_executable(navigate ${LIBELAS_SRC_FILES} src/obstacle_avoidance/navigate.cpp)
-target_link_libraries(navigate ${catkin_LIBRARIES} ${OpenCV_LIBS})
+target_link_libraries(navigate ${catkin_LIBRARIES} ${OpenCV_LIBS} "-lpopt")
 add_dependencies(navigate jackal_nav_generate_messages_cpp)
 
 add_executable(grab_frames src/obstacle_avoidance/grab_frames.cpp)
@@ -218,5 +218,5 @@ target_link_libraries(disparity_map ${catkin_LIBRARIES} ${OpenCV_LIBS})
 add_dependencies(disparity_map jackal_nav_generate_messages_cpp)
 
 add_executable(point_cloud ${LIBELAS_SRC_FILES} src/obstacle_avoidance/point_cloud.cpp)
-target_link_libraries(point_cloud ${catkin_LIBRARIES} ${OpenCV_LIBS})
+target_link_libraries(point_cloud ${catkin_LIBRARIES} ${OpenCV_LIBS} "-lpopt")
 add_dependencies(point_cloud jackal_nav_generate_messages_cpp)

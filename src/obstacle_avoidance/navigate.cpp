@@ -12,6 +12,7 @@
 #include <ctime>
 #include <deque>
 #include <geometry_msgs/Pose.h>
+#include "popt_pp.h"
 
 using namespace std;
 using namespace cv;
@@ -27,7 +28,7 @@ double forward_vel = 0., rot_vel = 0.;
 double trans_accel = 0.025;
 double trans_decel = 0.05;
 double rot_accel = 0.05;
-double max_forward_vel = 0.5;
+double max_forward_vel = 0.6;
 double max_rot_vel = 1.3;
 
 // declare clearances in front and side of the robot
@@ -48,9 +49,11 @@ typedef struct dat {
 } Pose;
 
 Pose jackal_pos;
+Pose final_pos;
 Pose current_waypoint;
 bool reached_waypoint = false;
 bool is_set_waypoint = false;
+vector< Pose > path;
 
 void visualizeLaserPoints() {
   // visualize laser points from obstacle scan as Marker points
@@ -114,8 +117,9 @@ int checkObstacle() {
   }
   if (one > 2)
     isObstacle = 1;
+  double conf = (double)one / (double)(one + zero);
   string stat = (isObstacle == 1) ? "Y" : "N";
-  cout << count << ", " << laserPoints.size() << ", " << stat << ", " << closestObst << endl;
+  cout << count << ", " << laserPoints.size() << ", " << stat << ", " << closestObst << ", " << conf << endl;
   return isObstacle;
 }
 
@@ -179,8 +183,7 @@ pair< double, double > stopInFrontMode(double side, double front) {
 }
 
 pair< double, double > stopInFrontMode() {
-  max_forward_vel = 1.0;
-  double desired_forward_vel = max_forward_vel * 0.5;
+  double desired_forward_vel = max_forward_vel * 1.0;
   double desired_rot_vel = 0.0;
   int dir = checkObstacle();
   if (dir == 1) {
@@ -190,7 +193,6 @@ pair< double, double > stopInFrontMode() {
 }
 
 pair< double, double > obstacleAvoidMode(double front) {
-  max_forward_vel = 1.0;
   double desired_forward_vel;
   double desired_rot_vel;
   int obst = checkObstacle();
@@ -225,7 +227,6 @@ pair< double, double > changeOrientation(double theta) {
 }
 
 pair< double, double > goToWayPoint(Pose wayPoint, double front) {
-  max_forward_vel = 1.0;
   pair< double, double > ret_vel;
   double dist = wayPoint.dist(jackal_pos);
   double theta = atan((wayPoint.y - jackal_pos.y) / (wayPoint.x - jackal_pos.x));
@@ -238,21 +239,22 @@ pair< double, double > goToWayPoint(Pose wayPoint, double front) {
     ret_vel.first = max_forward_vel * max(0.4, front);
     ret_vel.second = 0.;
   }
+  cout << "Distance to WP: " << dist << endl;
+  cout << "Angular diff: " << abs(jackal_pos.theta - theta) << endl;
   return ret_vel;
 }
 
 void setWayPoint(Pose& wayPoint, double dist) {
-  wayPoint.x = jackal_pos.x + 2 * cos(jackal_pos.theta);
-  wayPoint.y = jackal_pos.y + 2 * sin(jackal_pos.theta);
+  wayPoint.x = jackal_pos.x + dist * cos(jackal_pos.theta);
+  wayPoint.y = jackal_pos.y + dist * sin(jackal_pos.theta);
   wayPoint.theta = 0.;
 }
 
 pair< double, double > autoNavigateMode(double front) {
   pair< double, double > ret_vel;
   ret_vel = make_pair(0.,0.);
-  Pose final_pos;
   if (!is_set_waypoint) {
-    setWayPoint(final_pos, 2.);
+    setWayPoint(final_pos, 1.);
     is_set_waypoint = true;
   }
   if (!reached_waypoint) {
@@ -265,6 +267,7 @@ void safeNavigate(const sensor_msgs::JoyConstPtr& msg) {
   int R2 = msg->buttons[9];
   int R1 = msg->buttons[11];
   int X = msg->buttons[14];
+  int O = msg->buttons[13];
   int triangle = msg->buttons[12];
   double side = msg->axes[0];
   double front = msg->axes[1];
@@ -273,9 +276,11 @@ void safeNavigate(const sensor_msgs::JoyConstPtr& msg) {
   if (R1 && R2) {
     desired_vel = stopInFrontMode(side, front);
   } else if (triangle) {
-    desired_vel = stopInFrontMode();
+    desired_vel = autoNavigateMode(front);
   } else if (X) {
     desired_vel = obstacleAvoidMode(front);
+  } else if (O) {
+    desired_vel = stopInFrontMode();
   } else {
     return;
   }
@@ -329,9 +334,21 @@ void getCurrentPose(const geometry_msgs::PoseConstPtr& msg) {
 int main(int argc, char** argv) {
   ros::init(argc, argv, "jackal_navigation");
   ros::NodeHandle nh;
+
+  static struct poptOption options[] = {
+    { "max-forward-vel",'f',POPT_ARG_FLOAT,&max_forward_vel,0,"Max forward velocity","NUM" },
+    { "laser-thresh",'l',POPT_ARG_INT,&laser_pt_thresh,0,"Threshold for obstacle scan","NUM" },
+    POPT_AUTOHELP
+    { NULL, 0, 0, NULL, 0, NULL, NULL }
+  };
+
+  POpt popt(NULL, argc, argv, options, 0);
+  int c;
+  while((c = popt.getNextOpt()) >= 0) {}
+
   ros::Subscriber sub_laser_scan = nh.subscribe("/webcam/left/obstacle_scan", 1, laserScanCallback);
   ros::Subscriber sub_safe_drive = nh.subscribe("/bluetooth_teleop/joy", 1, safeNavigate);
-  ros::Subscriber sub_cur_pose = nh.subscribe("/Jackal/Pose", 1, getCurrentPose);
+  ros::Subscriber sub_cur_pose = nh.subscribe("/jackal/pose_estimate", 1, getCurrentPose);
   marker_pub = nh.advertise<visualization_msgs::Marker>("visualize_laser", 1);
   vel_pub = nh.advertise<geometry_msgs::Twist>("/jackal_velocity_controller/cmd_vel", 1);
   ros::spin();
