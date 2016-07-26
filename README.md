@@ -14,12 +14,8 @@ Currently using two Logitech C920s as a stereo pair. SSH into the Jackal, and st
 
 ```bash
 sudo chmod a+rw /dev/video0
-roslaunch jackal_nav webcam_left.launch
-```
-
-```bash
 sudo chmod a+rw /dev/video1
-roslaunch jackal_nav webcam_right.launch
+roslaunch jackal_nav stereo.launch
 ```
 
 ### Safe navigation
@@ -27,24 +23,24 @@ roslaunch jackal_nav webcam_right.launch
 Once the camera topics are being published, generate a point cloud and an obstacle scan using this command.
 
 ```bash
-rosrun jackal_nav point_cloud [path/to/calibration/file.yml]
+rosrun jackal_nav point_cloud -h [img_height] -c [path/to/calib/file] -l [logs time] -g [generates pcl] -d [path/to/dmap/time/file] -p [path/to/pcl/time/file] -s [path/to/scan/time/file] 
 ```
 
 Subscribes to two camera topics: 
 
-- `/webcam_left/image_raw/compressed`
-- `/webcam_right/image_raw/compressed`
+- `/webcam/left/image_raw/compressed`
+- `/webcam/right/image_raw/compressed`
 
 Publishes three topics: 
 
-- `/webcam_left/depth_map`
-- `/webcam_left/point_cloud`
-- `/webcam_left/obstacle_scan`
+- `/webcam/left/depth_map`
+- `/webcam/left/point_cloud`
+- `/webcam/left/obstacle_scan`
 
 Now the run the `navigate` node for safe navigation. 
 
 ```bash
-rosrun jackal_nav navigate
+rosrun jackal_nav navigate -f [max_forward_vel] -l [laser_scan_thresh]
 ```
 
 ### Drive modes
@@ -52,7 +48,7 @@ rosrun jackal_nav navigate
 Use the following combos on the DualShock controller to switch between modes
 
 - `R1 + R2`: Use left stick to drive. The jackal stops in front of obstacles.
-- `Hold X`: Let the Jackal move in the direction it's facing avoiding obstacles in its way.
+- `Hold X`: Let the Jackal move in the direction it's facing, avoiding obstacles in its way.
 
 ### Disparity Maps
 
