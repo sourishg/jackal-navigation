@@ -41,19 +41,32 @@ int last_dir = 0;
 
 const int INF = 1e9;
 
-typedef struct dat {
+struct Pose 
+{
   double x, y, theta;
-  double dist(dat p) {
+  double dist(Pose p) {
     return sqrt((x - p.x)*(x - p.x) + (y - p.y)*(y - p.y));
   }
-} Pose;
+};
+
+struct LineSegment
+{
+  float x1, y1, x2, y2;
+  float getAngle(LineSegment l) {
+    float m1 = atan2(y2-y1,x2-x1);
+    float m2 = atan2(l.y2-l.y1,l.x2-l.x1);
+    return m1 - m2;
+  }
+};
 
 Pose jackal_pos;
+Pose last_jackal_pos;
 Pose final_pos;
 Pose current_waypoint;
 bool reached_waypoint = false;
 bool is_set_waypoint = false;
 vector< Pose > path;
+int pose_update_counter = 0;
 
 void visualizeLaserPoints() {
   // visualize laser points from obstacle scan as Marker points
@@ -216,9 +229,9 @@ pair< double, double > obstacleAvoidMode(double front) {
 }
 
 pair< double, double > changeOrientation(double theta) {
-  double desired_forward_vel = 0.;
   double desired_rot_vel;
-  if (jackal_pos.theta < theta) {
+  double desired_forward_vel = forward_vel;
+  if (theta < 0.) {
     desired_rot_vel = max_rot_vel * 0.4;
   } else {
     desired_rot_vel = max_rot_vel * 0.4 * (-1);
@@ -229,18 +242,20 @@ pair< double, double > changeOrientation(double theta) {
 pair< double, double > goToWayPoint(Pose wayPoint, double front) {
   pair< double, double > ret_vel;
   double dist = wayPoint.dist(jackal_pos);
-  double theta = atan((wayPoint.y - jackal_pos.y) / (wayPoint.x - jackal_pos.x));
+  LineSegment wpt_line = {jackal_pos.x,jackal_pos.y,wayPoint.x,wayPoint.y};
+  LineSegment heading_line = {last_jackal_pos.x,last_jackal_pos.y,jackal_pos.x,jackal_pos.y};
+  double ang_diff = heading_line.getAngle(wpt_line);
   if (dist < 0.1) {
     reached_waypoint = true;
     ret_vel = make_pair(0.,0.);
-  } else if (abs(jackal_pos.theta - theta) > 0.1) {
-    ret_vel = changeOrientation(theta);
+  } else if (abs(ang_diff) > 0.2) {
+    ret_vel = changeOrientation(ang_diff);
   } else {
     ret_vel.first = max_forward_vel * max(0.4, front);
     ret_vel.second = 0.;
   }
   cout << "Distance to WP: " << dist << endl;
-  cout << "Angular diff: " << abs(jackal_pos.theta - theta) << endl;
+  cout << "Angular diff: " << ang_diff << endl;
   return ret_vel;
 }
 
@@ -329,6 +344,11 @@ void getCurrentPose(const geometry_msgs::PoseConstPtr& msg) {
   jackal_pos.x = msg->position.x;
   jackal_pos.y = msg->position.y;
   jackal_pos.theta = msg->orientation.x;
+  pose_update_counter++;
+  if (pose_update_counter > 10) {
+    last_jackal_pos = jackal_pos;
+    pose_update_counter = 0;
+  }
 }
 
 int main(int argc, char** argv) {
