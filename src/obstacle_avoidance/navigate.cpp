@@ -112,8 +112,10 @@ int checkObstacle() {
       isObstacle = 1;
     }
   }
+  /*
   if (closestObst < 0.6)
     isObstacle = 1;
+  */
   if (commands.size() < 20) {
     commands.push_back(isObstacle);
   } else {
@@ -128,7 +130,7 @@ int checkObstacle() {
     else
       zero++;
   }
-  if (one > 2)
+  if (one > 4)
     isObstacle = 1;
   double conf = (double)one / (double)(one + zero);
   string stat = (isObstacle == 1) ? "Y" : "N";
