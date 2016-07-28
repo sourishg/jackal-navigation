@@ -61,11 +61,9 @@ struct LineSegment
 
 Pose jackal_pos;
 Pose last_jackal_pos;
-Pose final_pos;
 Pose current_waypoint;
 bool reached_waypoint = false;
-bool is_set_waypoint = false;
-vector< Pose > path;
+deque< Pose > path;
 int pose_update_counter = 0;
 
 void visualizeLaserPoints() {
@@ -247,10 +245,10 @@ pair< double, double > goToWayPoint(Pose wayPoint, double front) {
   LineSegment wpt_line = {jackal_pos.x,jackal_pos.y,wayPoint.x,wayPoint.y};
   LineSegment heading_line = {last_jackal_pos.x,last_jackal_pos.y,jackal_pos.x,jackal_pos.y};
   double ang_diff = heading_line.getAngle(wpt_line);
-  if (dist < 0.1) {
+  if (dist < 0.3) {
     reached_waypoint = true;
     ret_vel = make_pair(0.,0.);
-  } else if (abs(ang_diff) > 0.2) {
+  } else if (abs(ang_diff) > 0.3) {
     ret_vel = changeOrientation(ang_diff);
   } else {
     ret_vel.first = max_forward_vel * max(0.4, front);
@@ -261,21 +259,22 @@ pair< double, double > goToWayPoint(Pose wayPoint, double front) {
   return ret_vel;
 }
 
-void setWayPoint(Pose& wayPoint, double dist) {
-  wayPoint.x = jackal_pos.x + dist * cos(jackal_pos.theta);
-  wayPoint.y = jackal_pos.y + dist * sin(jackal_pos.theta);
-  wayPoint.theta = 0.;
+void setWaypoints() {
+  // set all the intermediate waypoints here
 }
 
 pair< double, double > autoNavigateMode(double front) {
   pair< double, double > ret_vel;
   ret_vel = make_pair(0.,0.);
-  if (!is_set_waypoint) {
-    setWayPoint(final_pos, 1.);
-    is_set_waypoint = true;
+  if (path.size() == 0)
+    return ret_vel;
+  if (reached_waypoint) {
+    path.pop_back();
+    current_waypoint = path.back();
+    reached_waypoint = false;
   }
   if (!reached_waypoint) {
-    ret_vel = goToWayPoint(final_pos, front);
+    ret_vel = goToWayPoint(current_waypoint, front);
   }
   return ret_vel;
 }
