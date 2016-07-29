@@ -18,6 +18,8 @@ sudo chmod a+rw /dev/video1
 roslaunch jackal_nav stereo.launch
 ```
 
+Calibrate both the intrinsics and the extrinisics of the stereo setup using this [calibration tool](https://github.com/sourishg/stereo-calibration). The calibration file is saved as `src/calibration/stereo_calib.yml`. The `XR` and `XT` matrices in the calibration file are the transformation matrices from the camera frame to the robot frame.
+
 ### Safe navigation
 
 Once the camera topics are being published, generate a point cloud and an obstacle scan using this command.
