@@ -25,6 +25,12 @@ Calibrate both the intrinsics and the extrinisics of the stereo setup using this
 Once the camera topics are being published, generate a point cloud and an obstacle scan using this command.
 
 ```bash
+rosrun jackal_nav point_cloud -h [img_height] -c [path/to/calib/file] -g [generates pcl]
+```
+
+For logging time taken for each step in the pipeline use the following command instead
+
+```bash
 rosrun jackal_nav point_cloud -h [img_height] -c [path/to/calib/file] -l [logs time] -g [generates pcl] -d [path/to/dmap/time/file] -p [path/to/pcl/time/file] -s [path/to/scan/time/file] 
 ```
 
@@ -51,6 +57,7 @@ Use the following combos on the DualShock controller to switch between modes
 
 - `R1 + R2`: Use left stick to drive. The jackal stops in front of obstacles.
 - `Hold X`: Let the Jackal move in the direction it's facing, avoiding obstacles in its way.
+- `Hold triangle`: Auto waypoint based navigation
 
 ### Disparity Maps
 
