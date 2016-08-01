@@ -347,6 +347,9 @@ void getCurrentPose(const jackal_nav::JackalPoseConstPtr& msg) {
   jackal_pos.y = msg->y;
   jackal_pos.theta = msg->theta;
   pose_update_counter++;
+
+  cout << "Current: " << jackal_pos.x << ", " << jackal_pos.y << " Prev: " << last_jackal_pos.x << ", " << last_jackal_pos.y << endl;
+
   if (pose_update_counter > 10) {
     last_jackal_pos = jackal_pos;
     pose_update_counter = 0;
