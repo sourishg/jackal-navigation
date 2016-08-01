@@ -13,6 +13,7 @@
 #include <deque>
 #include <geometry_msgs/Pose.h>
 #include "popt_pp.h"
+#include "jackal_nav/JackalPose.h"
 
 using namespace std;
 using namespace cv;
@@ -59,8 +60,8 @@ struct LineSegment
   }
 };
 
-Pose jackal_pos;
-Pose last_jackal_pos;
+Pose jackal_pos = {0,0,0};
+Pose last_jackal_pos = {0,0,0};
 Pose current_waypoint;
 bool reached_waypoint = false;
 deque< Pose > path;
@@ -341,10 +342,10 @@ void laserScanCallback(const sensor_msgs::LaserScanConstPtr& msg) {
   checkObstacle();
 }
 
-void getCurrentPose(const geometry_msgs::PoseConstPtr& msg) {
-  jackal_pos.x = msg->position.x;
-  jackal_pos.y = msg->position.y;
-  jackal_pos.theta = msg->orientation.x;
+void getCurrentPose(const jackal_nav::JackalPoseConstPtr& msg) {
+  jackal_pos.x = msg->x;
+  jackal_pos.y = msg->y;
+  jackal_pos.theta = msg->theta;
   pose_update_counter++;
   if (pose_update_counter > 10) {
     last_jackal_pos = jackal_pos;
@@ -369,7 +370,7 @@ int main(int argc, char** argv) {
 
   ros::Subscriber sub_laser_scan = nh.subscribe("/webcam/left/obstacle_scan", 1, laserScanCallback);
   ros::Subscriber sub_safe_drive = nh.subscribe("/bluetooth_teleop/joy", 1, safeNavigate);
-  ros::Subscriber sub_cur_pose = nh.subscribe("/jackal/pose_estimate", 1, getCurrentPose);
+  ros::Subscriber sub_cur_pose = nh.subscribe("/jackal/gps_estimate", 1, getCurrentPose);
   marker_pub = nh.advertise<visualization_msgs::Marker>("visualize_laser", 1);
   vel_pub = nh.advertise<geometry_msgs::Twist>("/jackal_velocity_controller/cmd_vel", 1);
   ros::spin();
