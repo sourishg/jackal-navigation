@@ -7,3 +7,5 @@ It is essential that the lens format must be bigger than the sensor (camera) for
 The best lens that suits our need right now is the **KOWA LM6HC F1.8 f6mm 1"**. Since it's format is 1", it's apparent focal length on the 1/1.2" camera is 7.2mm. The following image shows the resulting FOVs.
 
 ![](images/camera_setup.png)
+
+The width and height of the Jackal are 430mm and 250mm respectively. The lens can see an object approximately 1.5m wide at a working distance of 1m. Also it is not necessary to check for obstacles which are higher than the robot, so the cameras can be oriented downwards facing the ground plane so it can see more of what is below and closer to it.
