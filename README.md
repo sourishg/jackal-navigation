@@ -17,7 +17,7 @@ roslaunch jackal_nav stereo.launch
 
 Calibrate both the intrinsics and the extrinisics of the stereo setup using this [calibration tool](https://github.com/sourishg/stereo-calibration). The calibration file is saved as `src/calibration/stereo_calib.yml`. The `XR` and `XT` matrices in the calibration file are the transformation matrices from the camera frame to the robot frame.
 
-### Safe navigation
+### Generate disparity map, point cloud and obstacle scan
 
 Once the camera topics are being published, generate a point cloud and an obstacle scan using this command.
 
@@ -29,20 +29,11 @@ options:
 - `-h=height`, specify height of the left and right image from the top, so that only a partial disparity map can be computed
 - `-g`, generates point cloud before obstacle scan
 - `-l`, log time taken for each step
-- `-d=path/to/dmap/time/file`, specify the file where time taken by disparity map is stored for each frame
-- `-p=path/to/pcl/time/file`, specify the file where time taken to generate a point cloud is stored for each frame
-- `-s=path/to/scan/time/file`, specify the file where time taken to scan for obstacles is stored for each frame
+- `-l -d=path/to/dmap/time/file`, specify the file where time taken by disparity map is stored for each frame
+- `-l -p=path/to/pcl/time/file`, specify the file where time taken to generate a point cloud is stored for each frame
+- `-l -s=path/to/scan/time/file`, specify the file where time taken to scan for obstacles is stored for each frame
 
-Subscribes to two camera topics: 
-
-- `/webcam/left/image_raw/compressed`
-- `/webcam/right/image_raw/compressed`
-
-Publishes three topics: 
-
-- `/webcam/left/depth_map`
-- `/webcam/left/point_cloud`
-- `/webcam/left/obstacle_scan`
+### Safe navigation
 
 Now the run the `navigate` node for safe navigation. 
 
