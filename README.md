@@ -1,12 +1,9 @@
 ## Obstacle Avoidance using stereo RGB cameras
 
-This is a ROS package for local obstacle avoidance on the Clearpath Jackal. It performs local 3D reconstruction and then generates an obstacle scan and publishes it as a `sensor_msgs/LaserScan` message. Using the laser scan data, the robot avoids obstacles locally.
-
 ### Dependencies
 
 - ROS
 - OpenCV
-- libelas
 
 ### Starting the cameras
 
@@ -25,14 +22,16 @@ Calibrate both the intrinsics and the extrinisics of the stereo setup using this
 Once the camera topics are being published, generate a point cloud and an obstacle scan using this command.
 
 ```bash
-rosrun jackal_nav point_cloud -h [img_height] -c [path/to/calib/file] -g [generates pcl]
+rosrun jackal_nav point_cloud -c=path/to/calib/file [options]
 ```
 
-For logging time taken for each step in the pipeline use the following command instead
-
-```bash
-rosrun jackal_nav point_cloud -h [img_height] -c [path/to/calib/file] -l [logs time] -g [generates pcl] -d [path/to/dmap/time/file] -p [path/to/pcl/time/file] -s [path/to/scan/time/file] 
-```
+options:
+- `-h=height`, specify height of the left and right image from the top, so that only a partial disparity map can be computed
+- `-g`, generates point cloud before obstacle scan
+- `-l`, log time taken for each step
+- `-d=path/to/dmap/time/file`, specify the file where time taken by disparity map is stored for each frame
+- `-p=path/to/pcl/time/file`, specify the file where time taken to generate a point cloud is stored for each frame
+- `-s=path/to/scan/time/file`, specify the file where time taken to scan for obstacles is stored for each frame
 
 Subscribes to two camera topics: 
 
@@ -48,8 +47,12 @@ Publishes three topics:
 Now the run the `navigate` node for safe navigation. 
 
 ```bash
-rosrun jackal_nav navigate -f [max_forward_vel] -l [laser_scan_thresh]
+rosrun jackal_nav navigate [options]
 ```
+
+options:
+- `-f=max_forward_vel`, specify maximum forward velocity
+- `-l=laser_scan_threshold`, specify a threshold for the number of laser points in front of the robot which determines whether there is an obstacle or not
 
 ### Drive modes
 
