@@ -41,12 +41,12 @@ ros::Publisher time_log_publisher;
 jackal_nav::JackalTimeLog time_log;
 
 Size rawimsize;
-int im_width = 288;
-int im_height = 180;
+int im_width = 640;
+int im_height = 400;
 int crop_offset_x = 0;
 int crop_offset_y = 0;
-int crop_im_width = 288;
-int crop_im_height = 180;
+int crop_im_width = 640;
+int crop_im_height = 400;
 const int INF = 1e9;
 uint32_t seq = 0;
 
@@ -57,7 +57,7 @@ char* obst_scan_time_file;
 bool logging = false;
 bool gen_pcl = false;
 
-const double GP_HEIGHT_THRESH = 0.06; // group plane height threshold
+const double GP_HEIGHT_THRESH = 0.04; // group plane height threshold
 const double GP_ANGLE_THRESH = 4. * 3.1415 / 180.; // ground plane angular height threshold
 const double GP_DIST_THRESH = 1.0; // starting distance for angular threshold
 const double ROBOT_HEIGHT = 0.34;
@@ -116,7 +116,6 @@ void publishObstacleScan(vector< Point3d > points, uint32_t seq) {
   double min_angle = 400, max_angle = -400;
   double range_min = INF, range_max = -500;
   double scan[bin_size];
-  Point3d closest_pt[bin_size];
   sensor_msgs::LaserScan obstacle_scan;
   obstacle_scan.header.seq = seq;
   obstacle_scan.header.frame_id = "jackal";
@@ -142,7 +141,6 @@ void publishObstacleScan(vector< Point3d > points, uint32_t seq) {
     int j = floor((double)bin_size * (fov / 2. - theta_deg) / fov);
     if (r < scan[j]) {
       scan[j] = r;
-      closest_pt[j] = points[i];
     }
   }
   obstacle_scan.angle_min = min_angle;
@@ -281,9 +279,11 @@ void publishPointCloud(Mat& show, uint32_t seq) {
       point3d_cam.at<double>(1,0) = Y;
       point3d_cam.at<double>(2,0) = Z;
       Mat point3d_robot = XR * point3d_cam + XT;
-      if (point3d_robot.at<double>(2,0) > ROBOT_HEIGHT || point3d_robot.at<double>(2,0) < 0.) {
+      
+      if (point3d_robot.at<double>(2,0) < 0.) {
         continue;
       }
+      
       points.push_back(Point3d(point3d_robot));
       geometry_msgs::Point32 pt;
       pt.x = point3d_robot.at<double>(0,0);
@@ -312,9 +312,6 @@ void publishPointCloud(Mat& show, uint32_t seq) {
           blue = leftim_res.at<Vec3b>(j,i)[0];
         }
       }
-      red = leftim_res.at<Vec3b>(j,i)[2];
-      green = leftim_res.at<Vec3b>(j,i)[1];
-      blue = leftim_res.at<Vec3b>(j,i)[0];
       // color point cloud
       int32_t rgb = (red << 16 | green << 8 | blue);
       ch.values.push_back(*reinterpret_cast<float*>(&rgb));
@@ -322,7 +319,6 @@ void publishPointCloud(Mat& show, uint32_t seq) {
   }
   pc.channels.push_back(ch);
   pcl_publisher.publish(pc);
-
   clock_t end = clock();
   double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
   if (logging && gen_pcl) {
