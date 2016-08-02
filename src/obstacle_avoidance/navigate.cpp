@@ -58,6 +58,9 @@ struct LineSegment
     float m2 = atan2(l.y2-l.y1,l.x2-l.x1);
     return m1 - m2;
   }
+  float heading() {
+    return atan2(y2-y1,x2-x1);
+  }
 };
 
 Pose jackal_pos = {0,0,0};
@@ -350,7 +353,10 @@ void getCurrentPose(const jackal_nav::JackalPoseConstPtr& msg) {
 
   cout << "Current: " << jackal_pos.x << ", " << jackal_pos.y << " Prev: " << last_jackal_pos.x << ", " << last_jackal_pos.y << endl;
 
-  if (pose_update_counter > 10) {
+  LineSegment heading_line = {last_jackal_pos.x,last_jackal_pos.y,jackal_pos.x,jackal_pos.y};
+  cout << "Heading: " << (heading_line.heading() * 180. / 3.14) << endl;
+
+  if (pose_update_counter > 50) {
     last_jackal_pos = jackal_pos;
     pose_update_counter = 0;
   }
