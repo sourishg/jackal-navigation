@@ -43,7 +43,7 @@ int last_dir = 0;
 
 const int INF = 1e9;
 
-struct Pose 
+struct Pose
 {
   double x, y, theta;
   double dist(Pose p) {
@@ -67,9 +67,10 @@ struct LineSegment
 Pose jackal_pos = {0,0,0};
 Pose last_jackal_pos = {0,0,0};
 Pose current_waypoint;
-bool reached_waypoint = true;
+bool reached_waypoint = false;
 deque< Pose > path;
 int pose_update_counter = 0;
+int rot_frames = 0;
 
 void visualizeLaserPoints() {
   // visualize laser points from obstacle scan as Marker points
@@ -98,7 +99,7 @@ int checkObstacle() {
   int count = 0;
   int isObstacle = 0;
   double closestObst = INF;
-  for (int i = 0; i < laserPoints.size(); i++) {    
+  for (int i = 0; i < laserPoints.size(); i++) {
     // check if laser points lie in safe region
     double dist = sqrt(laserPoints[i].x*laserPoints[i].x + laserPoints[i].y*laserPoints[i].y);
     closestObst = min(closestObst, dist);
@@ -150,7 +151,7 @@ int chooseDirection() {
       } else {
         left_count++;
       }
-    } 
+    }
   }
   if (left_count + right_count < 2)
     return 0;
@@ -247,16 +248,18 @@ pair< double, double > changeOrientation(double theta) {
 pair< double, double > goToWayPoint(Pose wayPoint, double front) {
   pair< double, double > ret_vel;
   double dist = wayPoint.dist(jackal_pos);
-  LineSegment wpt_line = {jackal_pos.x,jackal_pos.y,wayPoint.x,wayPoint.y};
-  LineSegment heading_line = {last_jackal_pos.x,last_jackal_pos.y,jackal_pos.x,jackal_pos.y};
-  double ang_diff = heading_line.getAngle(wpt_line);
-  ang_diff = ang_diff * 180. / 3.1415;
-  if (dist < 2) {
+  if (dist < 3) {
     reached_waypoint = true;
     ret_vel = make_pair(0.,0.);
-  } else if (abs(ang_diff) > 20) {
-    cout << "------------------Changing orientation!---------------" << endl;
-    ret_vel = changeOrientation(ang_diff);
+  } else if (rot_frames != 0) {
+    if (rot_frames < 0) {
+      ret_vel.second = max_rot_vel;
+      rot_frames++;
+    } else {
+      ret_vel.second = -max_rot_vel;
+      rot_frames--;
+    }
+    ret_vel.first = max_forward_vel * max(0.4, front);
   } else {
     ret_vel.first = max_forward_vel * max(0.4, front);
     ret_vel.second = 0.;
@@ -357,17 +360,26 @@ void getCurrentPose(const jackal_nav::JackalPoseConstPtr& msg) {
   jackal_pos.y = msg->y;
   jackal_pos.theta = msg->theta;
   pose_update_counter++;
-  cout << "Current position: " << jackal_pos.x << ", " << jackal_pos.y << endl;
+  //cout << "Current position: " << jackal_pos.x << ", " << jackal_pos.y << endl;
   //cout << "Current: " << jackal_pos.x << ", " << jackal_pos.y << " Prev: " << last_jackal_pos.x << ", " << last_jackal_pos.y << endl;
 
   LineSegment heading_line = {last_jackal_pos.x,last_jackal_pos.y,jackal_pos.x,jackal_pos.y};
+  LineSegment waypoint_line = {jackal_pos.x,jackal_pos.y,current_waypoint.x,current_waypoint.y};
   //cout << "Heading: " << (heading_line.heading() * 180. / 3.14) << endl;
 
   if (pose_update_counter > 20) {
-    last_jackal_pos = jackal_pos;
+    if (last_jackal_pos.dist(jackal_pos) > 5) {
+      double ang_diff = heading_line.getAngle(waypoint_line);
+      if (abs(ang_diff) > 30) {
+        double cmd_rate = 30.;
+        rot_frames = ang_diff * cmd_rate / max_rot_vel;
+      } else {
+        rot_frames = 0;
+      }
+      last_jackal_pos = jackal_pos;
+    }
     pose_update_counter = 0;
   }
-  autoNavigateMode(1.0);
 }
 
 void read_waypoints(char* filename) {
@@ -386,6 +398,8 @@ void read_waypoints(char* filename) {
       cout << "Read (" << waypoint.x << "," << waypoint.y << ")" << endl;
       path.push_back(waypoint);
     }
+    current_waypoint = path.front();
+    path.pop_front();
     cout << "Read waypoints!" << endl;
   } else {
     cout << "Cannot open file!" << endl;
