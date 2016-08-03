@@ -256,9 +256,11 @@ pair< double, double > goToWayPoint(Pose wayPoint, double front) {
     ret_vel = make_pair(0.,0.);
   } else if (rot_frames != 0) {
     if (rot_frames < 0) {
+      cout << "ROTATING LEFT!!!" << endl;
       ret_vel.second = max_rot_vel * 0.5;
       rot_frames++;
     } else {
+      cout << "ROTATING RIGHT!!!" << endl;
       ret_vel.second = -max_rot_vel * 0.5;
       rot_frames--;
     }
@@ -361,18 +363,20 @@ void getCurrentPose(const jackal_nav::JackalPoseConstPtr& msg) {
   jackal_pos.y = msg->y;
   jackal_pos.theta = msg->theta;
   pose_update_counter++;
-  //cout << "Current position: " << jackal_pos.x << ", " << jackal_pos.y << endl;
+  cout << "Current position: " << jackal_pos.x << ", " << jackal_pos.y << endl;
   //cout << "Current: " << jackal_pos.x << ", " << jackal_pos.y << " Prev: " << last_jackal_pos.x << ", " << last_jackal_pos.y << endl;
 
   LineSegment heading_line = {last_jackal_pos.x,last_jackal_pos.y,jackal_pos.x,jackal_pos.y};
   LineSegment waypoint_line = {jackal_pos.x,jackal_pos.y,current_waypoint.x,current_waypoint.y};
   //cout << "Heading: " << (heading_line.heading() * 180. / 3.14) << endl;
+  double ang_diff = heading_line.getAngle(waypoint_line);
+  cout << "Ang diff: " << (ang_diff * 180. / 3.14)  << endl;
+  cout << "Rot frames: " << rot_frames << endl;
 
   if (pose_update_counter > 20) {
     if (last_jackal_pos.dist(jackal_pos) > 5) {
-      double ang_diff = heading_line.getAngle(waypoint_line);
-      if (abs(ang_diff) > 30) {
-        double cmd_rate = 45.;
+      if (abs(ang_diff * 180 / 3.14) > 30) {
+        double cmd_rate = 10.;
         rot_frames = ang_diff * cmd_rate / (max_rot_vel * 0.5);
       } else {
         rot_frames = 0;
