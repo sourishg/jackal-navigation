@@ -12,8 +12,6 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   cv_bridge
   uvc_camera
-  pcl_conversions
-  pcl_ros
   message_generation
 )
 
