@@ -265,7 +265,6 @@ pair< double, double > goToWayPoint(Pose wayPoint, double front) {
     ret_vel.second = 0.;
   }
   cout << "Distance to WP: " << dist << endl;
-  cout << "Angular diff: " << ang_diff << endl;
   return ret_vel;
 }
 
