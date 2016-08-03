@@ -41,12 +41,12 @@ ros::Publisher time_log_publisher;
 jackal_nav::JackalTimeLog time_log;
 
 Size rawimsize;
-int im_width = 640;
-int im_height = 400;
+int im_width = 1920;
+int im_height = 1200;
 int crop_offset_x = 0;
 int crop_offset_y = 0;
-int crop_im_width = 640;
-int crop_im_height = 400;
+int crop_im_width = 1920;
+int crop_im_height = 1200;
 const int INF = 1e9;
 uint32_t seq = 0;
 
