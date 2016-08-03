@@ -111,11 +111,14 @@ int checkObstacle() {
   // spatial filter
   if (count > laser_pt_thresh) {
     isObstacle = 1;
-  } else {
+  }
+  /* 
+  else {
     if (count > 0.5 * (double)laserPoints.size()) {
       isObstacle = 1;
     }
   }
+  */
   /*
   if (closestObst < 0.6)
     isObstacle = 1;
@@ -134,7 +137,7 @@ int checkObstacle() {
     else
       zero++;
   }
-  if (one > 4)
+  if (one > 2)
     isObstacle = 1;
   double conf = (double)one / (double)(one + zero);
   string stat = (isObstacle == 1) ? "Y" : "N";
@@ -253,10 +256,10 @@ pair< double, double > goToWayPoint(Pose wayPoint, double front) {
     ret_vel = make_pair(0.,0.);
   } else if (rot_frames != 0) {
     if (rot_frames < 0) {
-      ret_vel.second = max_rot_vel;
+      ret_vel.second = max_rot_vel * 0.5;
       rot_frames++;
     } else {
-      ret_vel.second = -max_rot_vel;
+      ret_vel.second = -max_rot_vel * 0.5;
       rot_frames--;
     }
     ret_vel.first = max_forward_vel * max(0.4, front);
@@ -351,7 +354,6 @@ void laserScanCallback(const sensor_msgs::LaserScanConstPtr& msg) {
     laserPoints[i].y = msg->ranges[i] * sin(angle);
   }
   visualizeLaserPoints();
-  checkObstacle();
 }
 
 void getCurrentPose(const jackal_nav::JackalPoseConstPtr& msg) {
@@ -370,8 +372,8 @@ void getCurrentPose(const jackal_nav::JackalPoseConstPtr& msg) {
     if (last_jackal_pos.dist(jackal_pos) > 5) {
       double ang_diff = heading_line.getAngle(waypoint_line);
       if (abs(ang_diff) > 30) {
-        double cmd_rate = 30.;
-        rot_frames = ang_diff * cmd_rate / max_rot_vel;
+        double cmd_rate = 45.;
+        rot_frames = ang_diff * cmd_rate / (max_rot_vel * 0.5);
       } else {
         rot_frames = 0;
       }
