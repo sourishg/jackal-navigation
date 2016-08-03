@@ -10,6 +10,7 @@
 #include <sensor_msgs/Joy.h>
 #include <visualization_msgs/Marker.h>
 #include <ctime>
+#include <fstream>
 #include <deque>
 #include <geometry_msgs/Pose.h>
 #include "popt_pp.h"
@@ -66,7 +67,7 @@ struct LineSegment
 Pose jackal_pos = {0,0,0};
 Pose last_jackal_pos = {0,0,0};
 Pose current_waypoint;
-bool reached_waypoint = false;
+bool reached_waypoint = true;
 deque< Pose > path;
 int pose_update_counter = 0;
 
@@ -249,10 +250,12 @@ pair< double, double > goToWayPoint(Pose wayPoint, double front) {
   LineSegment wpt_line = {jackal_pos.x,jackal_pos.y,wayPoint.x,wayPoint.y};
   LineSegment heading_line = {last_jackal_pos.x,last_jackal_pos.y,jackal_pos.x,jackal_pos.y};
   double ang_diff = heading_line.getAngle(wpt_line);
-  if (dist < 0.3) {
+  ang_diff = ang_diff * 180. / 3.1415;
+  if (dist < 2) {
     reached_waypoint = true;
     ret_vel = make_pair(0.,0.);
-  } else if (abs(ang_diff) > 0.3) {
+  } else if (abs(ang_diff) > 20) {
+    cout << "------------------Changing orientation!---------------" << endl;
     ret_vel = changeOrientation(ang_diff);
   } else {
     ret_vel.first = max_forward_vel * max(0.4, front);
@@ -270,16 +273,20 @@ void setWaypoints() {
 pair< double, double > autoNavigateMode(double front) {
   pair< double, double > ret_vel;
   ret_vel = make_pair(0.,0.);
-  if (path.size() == 0)
+  if (path.size() == 0 && reached_waypoint) {
+    cout << "REACHED ALL WAYPOINTS" << endl;
     return ret_vel;
+  }
   if (reached_waypoint) {
-    path.pop_back();
-    current_waypoint = path.back();
+    cout << "REACHED WAYPOINT! *********************************" << endl;
+    current_waypoint = path.front();
+    path.pop_front();
     reached_waypoint = false;
   }
   if (!reached_waypoint) {
     ret_vel = goToWayPoint(current_waypoint, front);
   }
+  cout << "Current waypoint: " << current_waypoint.x << ", " << current_waypoint.y << endl;
   return ret_vel;
 }
 
@@ -350,15 +357,38 @@ void getCurrentPose(const jackal_nav::JackalPoseConstPtr& msg) {
   jackal_pos.y = msg->y;
   jackal_pos.theta = msg->theta;
   pose_update_counter++;
-
-  cout << "Current: " << jackal_pos.x << ", " << jackal_pos.y << " Prev: " << last_jackal_pos.x << ", " << last_jackal_pos.y << endl;
+  cout << "Current position: " << jackal_pos.x << ", " << jackal_pos.y << endl;
+  //cout << "Current: " << jackal_pos.x << ", " << jackal_pos.y << " Prev: " << last_jackal_pos.x << ", " << last_jackal_pos.y << endl;
 
   LineSegment heading_line = {last_jackal_pos.x,last_jackal_pos.y,jackal_pos.x,jackal_pos.y};
-  cout << "Heading: " << (heading_line.heading() * 180. / 3.14) << endl;
+  //cout << "Heading: " << (heading_line.heading() * 180. / 3.14) << endl;
 
-  if (pose_update_counter > 50) {
+  if (pose_update_counter > 20) {
     last_jackal_pos = jackal_pos;
     pose_update_counter = 0;
+  }
+  autoNavigateMode(1.0);
+}
+
+void read_waypoints(char* filename) {
+  ifstream f(filename);
+  if (f.is_open()) {
+    int n;
+    Pose waypoint;
+    float x, y;
+    waypoint.theta = 0.;
+    f >> n;
+    for (int i = 0; i < n; i++) {
+      f >> x;
+      f >> y;
+      waypoint.x = x;
+      waypoint.y = y;
+      cout << "Read (" << waypoint.x << "," << waypoint.y << ")" << endl;
+      path.push_back(waypoint);
+    }
+    cout << "Read waypoints!" << endl;
+  } else {
+    cout << "Cannot open file!" << endl;
   }
 }
 
@@ -366,9 +396,12 @@ int main(int argc, char** argv) {
   ros::init(argc, argv, "jackal_navigation");
   ros::NodeHandle nh;
 
+  char *waypoint_file = "";
+
   static struct poptOption options[] = {
     { "max-forward-vel",'f',POPT_ARG_FLOAT,&max_forward_vel,0,"Max forward velocity","NUM" },
     { "laser-thresh",'l',POPT_ARG_INT,&laser_pt_thresh,0,"Threshold for obstacle scan","NUM" },
+    { "waypoint-file",'w',POPT_ARG_STRING,&waypoint_file,0,"Waypoints text file","STR" },
     POPT_AUTOHELP
     { NULL, 0, 0, NULL, 0, NULL, NULL }
   };
@@ -376,6 +409,10 @@ int main(int argc, char** argv) {
   POpt popt(NULL, argc, argv, options, 0);
   int c;
   while((c = popt.getNextOpt()) >= 0) {}
+
+  if (strlen(waypoint_file) != 0) {
+    read_waypoints(waypoint_file);
+  }
 
   ros::Subscriber sub_laser_scan = nh.subscribe("/webcam/left/obstacle_scan", 1, laserScanCallback);
   ros::Subscriber sub_safe_drive = nh.subscribe("/bluetooth_teleop/joy", 1, safeNavigate);
