@@ -28,9 +28,9 @@ ros::Publisher vel_pub;
 
 double forward_vel = 0., rot_vel = 0.;
 double trans_accel = 0.025;
-double trans_decel = 0.05;
+double trans_decel = 0.1;
 double rot_accel = 0.05;
-double max_forward_vel = 0.6;
+float max_forward_vel = 0.6;
 double max_rot_vel = 1.3;
 
 // declare clearances in front and side of the robot
@@ -119,10 +119,8 @@ int checkObstacle() {
     }
   }
   */
-  /*
-  if (closestObst < 0.6)
+  if (closestObst < 0.5)
     isObstacle = 1;
-  */
   if (commands.size() < 20) {
     commands.push_back(isObstacle);
   } else {
@@ -374,9 +372,9 @@ void getCurrentPose(const jackal_nav::JackalPoseConstPtr& msg) {
   cout << "Rot frames: " << rot_frames << endl;
 
   if (pose_update_counter > 20) {
-    if (last_jackal_pos.dist(jackal_pos) > 5) {
+    if (last_jackal_pos.dist(jackal_pos) > 3) {
       if (abs(ang_diff * 180 / 3.14) > 30) {
-        double cmd_rate = 10.;
+        double cmd_rate = 8.;
         rot_frames = ang_diff * cmd_rate / (max_rot_vel * 0.5);
       } else {
         rot_frames = 0;
@@ -418,9 +416,9 @@ int main(int argc, char** argv) {
   char *waypoint_file = "";
 
   static struct poptOption options[] = {
+    { "waypoint-file",'w',POPT_ARG_STRING,&waypoint_file,0,"Waypoints text file","STR" },
     { "max-forward-vel",'f',POPT_ARG_FLOAT,&max_forward_vel,0,"Max forward velocity","NUM" },
     { "laser-thresh",'l',POPT_ARG_INT,&laser_pt_thresh,0,"Threshold for obstacle scan","NUM" },
-    { "waypoint-file",'w',POPT_ARG_STRING,&waypoint_file,0,"Waypoints text file","STR" },
     POPT_AUTOHELP
     { NULL, 0, 0, NULL, 0, NULL, NULL }
   };

@@ -46,7 +46,7 @@ int im_height = 180;
 int crop_offset_x = 0;
 int crop_offset_y = 0;
 int crop_im_width = 320;
-int crop_im_height = 90;
+int crop_im_height = 180;
 const int INF = 1e9;
 uint32_t seq = 0;
 
@@ -57,7 +57,7 @@ char* obst_scan_time_file;
 bool logging = false;
 bool gen_pcl = false;
 
-const double GP_HEIGHT_THRESH = 0.06; // group plane height threshold
+const double GP_HEIGHT_THRESH = 0.07; // group plane height threshold
 const double GP_ANGLE_THRESH = 4. * 3.1415 / 180.; // ground plane angular height threshold
 const double GP_DIST_THRESH = 1.0; // starting distance for angular threshold
 const double ROBOT_HEIGHT = 0.34;
@@ -90,7 +90,7 @@ void cacheDisparityValues() {
         X = point3d_robot.at<double>(0,0);
         Y = point3d_robot.at<double>(1,0);
         Z = point3d_robot.at<double>(2,0);
-        if (Z > ROBOT_HEIGHT || Z < 0.) {
+        if (Z < 0.) {
           continue;
         }
         if (X < GP_DIST_THRESH) {
@@ -281,7 +281,7 @@ void publishPointCloud(Mat& show, uint32_t seq) {
       point3d_cam.at<double>(1,0) = Y;
       point3d_cam.at<double>(2,0) = Z;
       Mat point3d_robot = XR * point3d_cam + XT;
-      if (point3d_robot.at<double>(2,0) > ROBOT_HEIGHT || point3d_robot.at<double>(2,0) < 0.) {
+      if (point3d_robot.at<double>(2,0) < 0.) {
         continue;
       }
       points.push_back(Point3d(point3d_robot));
