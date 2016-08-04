@@ -9,8 +9,8 @@ using namespace cv;
 Mat imgL, imgR, imgL_resized, imgR_resized;
 int save_count = 1;
 
-int im_width = 1920;
-int im_height = 1200;
+int im_width = 640;
+int im_height = 400;
 
 void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
 {
