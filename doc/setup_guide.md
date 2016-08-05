@@ -76,6 +76,8 @@ options:
 
 Once you have the calibration images saved, use [this tool](https://github.com/sourishg/stereo-calibration) to calibrate for the intrinsics and the extrinsics. The calibration file is saved as `src/calibration/stereo_calib.yml`. The `XR` and `XT` matrices in the calibration file are the transformation matrices from the camera frame to the robot frame. You can decompose `XR` into it's Euler angles - see this [link](http://nghiaho.com/?page_id=846).
 
+Make sure you change your `im_width` and `im_height` values based on your calibration resolution.
+
 ### Step 4: Generate disparity map, point cloud, and obstacle scan
 
 Once the camera topics are being published, generate a point cloud and an obstacle scan using this command.

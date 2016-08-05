@@ -41,7 +41,7 @@ ros::Publisher time_log_publisher;
 jackal_nav::JackalTimeLog time_log;
 
 Size rawimsize;
-int im_width = 320;
+int im_width = 320; // change image width and height according to your calibration
 int im_height = 200;
 int crop_offset_x = 0; // starting x coordinate of disparity map
 int crop_offset_y = 0; // starting y coordinate of disparity map
