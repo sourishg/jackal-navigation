@@ -27,15 +27,18 @@ ros::Publisher marker_pub;
 ros::Publisher vel_pub;
 
 double forward_vel = 0., rot_vel = 0.;
-double trans_accel = 0.025;
-double trans_decel = 0.1;
-double rot_accel = 0.05;
-float max_forward_vel = 0.6;
-double max_rot_vel = 1.3;
+double trans_accel = 0.025; // forward acceleration
+double trans_decel = 0.1; // forward deceleration
+double rot_accel = 0.05; // rotational acceleration
+float max_forward_vel = 0.6; // maximum forward velocity
+double max_rot_vel = 1.3; // maximum rotational velocity
 
 // declare clearances in front and side of the robot
 double clear_front = 0.24 + 1.5;
 double clear_side = 0.3;
+
+// min number of laser points in front of the clearance of the robot
+// to detect an obstacle
 int laser_pt_thresh = 8;
 
 deque< int > commands;
@@ -119,8 +122,11 @@ int checkObstacle() {
     }
   }
   */
+  // if there is a laser point close than 50 cm, the robot should stop
   if (closestObst < 0.5)
     isObstacle = 1;
+  // last 20 classifications of obstacles are stored in a deque
+  // sort of like a temporal filter
   if (commands.size() < 20) {
     commands.push_back(isObstacle);
   } else {
@@ -135,8 +141,11 @@ int checkObstacle() {
     else
       zero++;
   }
+  // if there are more than 2 classifications of obstacles in the past 20
+  // frames, then it's probably an obstacle
   if (one > 2)
     isObstacle = 1;
+  // confidence value of obstacle detection
   double conf = (double)one / (double)(one + zero);
   string stat = (isObstacle == 1) ? "Y" : "N";
   cout << count << ", " << laserPoints.size() << ", " << stat << ", " << closestObst << ", " << conf << endl;
@@ -147,6 +156,7 @@ int chooseDirection() {
   int left_count = 0, right_count = 0;
   for (int i = 0; i < laserPoints.size(); i++) {
     if (laserPoints[i].x > 0. && laserPoints[i].x < clear_front) {
+      // calculate number of laser points in the left and right side
       if (laserPoints[i].y < 0) {
         right_count++;
       } else {
@@ -156,9 +166,12 @@ int chooseDirection() {
   }
   if (left_count + right_count < 2)
     return 0;
+  // calculate confidence for left turn
   double conf_left = 2.*(double)right_count/(double)(left_count+right_count);
+  // calculate confidence for right turn
   double conf_right = 2.*(double)left_count/(double)(left_count+right_count);
   int dir = 0;
+  // hysterisis check based on last direction the robot took
   if (conf_left > conf_right) {
     if (last_dir != 1) {
       if (conf_left - conf_right > 0.5) {
@@ -195,8 +208,9 @@ double getSafeVel(double trans_accel) {
 pair< double, double > stopInFrontMode(double side, double front) {
   double desired_forward_vel = max_forward_vel * front;
   double desired_rot_vel = max_rot_vel * side;
-  int dir = checkObstacle();
+  int dir = checkObstacle(); // check for obstacles in front
   if (dir == 1) {
+    // if there's an obstacle stop or allow the jackal to move back
     desired_forward_vel = min(desired_forward_vel, 0.);
   }
   return make_pair(desired_forward_vel, desired_rot_vel);
@@ -220,28 +234,22 @@ pair< double, double > obstacleAvoidMode(double front) {
     int dir = chooseDirection();
     last_dir = dir;
     if (dir == 1) {
+      // rotate left
       desired_rot_vel = max_rot_vel * 0.4;
     } else if (dir == 2) {
+      // rotate right
       desired_rot_vel = max_rot_vel * 0.4 * (-1);
     } else {
+      // dont rotate - no good direction to go
       desired_rot_vel = max_rot_vel * 0.0;
     }
+    // stop while rotating
     desired_forward_vel = max_forward_vel * 0.0;
   } else {
+    // obstacle free so go forward
     desired_forward_vel = max_forward_vel * max(0.4, front);
     desired_rot_vel = max_rot_vel * 0.0;
     last_dir = 0;
-  }
-  return make_pair(desired_forward_vel, desired_rot_vel);
-}
-
-pair< double, double > changeOrientation(double theta) {
-  double desired_rot_vel;
-  double desired_forward_vel = forward_vel;
-  if (theta < 0.) {
-    desired_rot_vel = max_rot_vel * 0.4;
-  } else {
-    desired_rot_vel = max_rot_vel * 0.4 * (-1);
   }
   return make_pair(desired_forward_vel, desired_rot_vel);
 }
@@ -271,10 +279,6 @@ pair< double, double > goToWayPoint(Pose wayPoint, double front) {
   return ret_vel;
 }
 
-void setWaypoints() {
-  // set all the intermediate waypoints here
-}
-
 pair< double, double > autoNavigateMode(double front) {
   pair< double, double > ret_vel;
   ret_vel = make_pair(0.,0.);
@@ -296,6 +300,7 @@ pair< double, double > autoNavigateMode(double front) {
 }
 
 void safeNavigate(const sensor_msgs::JoyConstPtr& msg) {
+  // read joystick input
   int R2 = msg->buttons[9];
   int R1 = msg->buttons[11];
   int X = msg->buttons[14];
@@ -305,10 +310,11 @@ void safeNavigate(const sensor_msgs::JoyConstPtr& msg) {
   double front = msg->axes[1];
   double desired_forward_vel, desired_rot_vel;
   pair< double, double > desired_vel;
+  // run the different modes
   if (R1 && R2) {
     desired_vel = stopInFrontMode(side, front);
   } else if (triangle) {
-    desired_vel = autoNavigateMode(front);
+    desired_vel = autoNavigateMode(front); // navigation doesn't work yet
   } else if (X) {
     desired_vel = obstacleAvoidMode(front);
   } else if (O) {
