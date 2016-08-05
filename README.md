@@ -10,9 +10,9 @@
 Currently using two Logitech C920s as a stereo pair. SSH into the Jackal, and start the webcams using the following commands.
 
 ```bash
-sudo chmod a+rw /dev/video0
-sudo chmod a+rw /dev/video1
-roslaunch jackal_nav stereo.launch
+$ sudo chmod a+rw /dev/video0
+$ sudo chmod a+rw /dev/video1
+$ roslaunch jackal_nav stereo.launch
 ```
 
 Calibrate both the intrinsics and the extrinisics of the stereo setup using this [calibration tool](https://github.com/sourishg/stereo-calibration). The calibration file is saved as `src/calibration/stereo_calib.yml`. The `XR` and `XT` matrices in the calibration file are the transformation matrices from the camera frame to the robot frame.
@@ -22,7 +22,7 @@ Calibrate both the intrinsics and the extrinisics of the stereo setup using this
 Once the camera topics are being published, generate a point cloud and an obstacle scan using this command.
 
 ```bash
-rosrun jackal_nav point_cloud -c=path/to/calib/file [options]
+$ rosrun jackal_nav point_cloud -c=path/to/calib/file [options]
 ```
 
 options:
@@ -35,10 +35,10 @@ options:
 
 ### Safe navigation
 
-Now the run the `navigate` node for safe navigation. 
+Now the run the `navigate` node for safe navigation.
 
 ```bash
-rosrun jackal_nav navigate [options]
+$ rosrun jackal_nav navigate [options]
 ```
 
 options:

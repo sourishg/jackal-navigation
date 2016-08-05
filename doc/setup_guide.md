@@ -5,7 +5,7 @@
 Setup a static IP connection between your computer and the Jackal. If you're doing this over ethernet, set your IP to `192.168.1.X` where `X` can be anything except `11`. The Jackal's IP address is `192.168.11`. Then do the following:
 
 ```bash
-ssh administrator@192.168.1.11
+$ ssh administrator@192.168.1.11
 ```
 
 The password is `clearpath`.
@@ -81,7 +81,7 @@ Once you have the calibration images saved, use [this tool](https://github.com/s
 Once the camera topics are being published, generate a point cloud and an obstacle scan using this command.
 
 ```bash
-rosrun jackal_nav point_cloud -c=path/to/calib/file [options]
+$ rosrun jackal_nav point_cloud -c=path/to/calib/file [options]
 ```
 
 options:
@@ -97,7 +97,7 @@ options:
 Now the run the `navigate` node for safe navigation.
 
 ```bash
-rosrun jackal_nav navigate [options]
+$ rosrun jackal_nav navigate [options]
 ```
 
 options:
