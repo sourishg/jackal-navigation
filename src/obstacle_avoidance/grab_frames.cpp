@@ -4,6 +4,7 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/CompressedImage.h>
+#include "popt_pp.h"
 
 using namespace cv;
 Mat imgL, imgR, imgL_resized, imgR_resized;
@@ -64,6 +65,18 @@ int main(int argc, char **argv)
 {
   ros::init(argc, argv, "image_listener_left");
   ros::NodeHandle nh;
+
+  static struct poptOption options[] = {
+    { "width",'w',POPT_ARG_INT,&im_width,0,"Image width","NUM" },
+    { "height",'h',POPT_ARG_INT,&im_height,0,"Image height","NUM" },
+    POPT_AUTOHELP
+    { NULL, 0, 0, NULL, 0, NULL, NULL }
+  };
+
+  POpt popt(NULL, argc, argv, options, 0);
+  int c;
+  while((c = popt.getNextOpt()) >= 0) {}
+
   cv::namedWindow("view_left");
   cv::namedWindow("view_right");
   cv::startWindowThread();

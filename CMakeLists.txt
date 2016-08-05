@@ -209,7 +209,7 @@ target_link_libraries(navigate ${catkin_LIBRARIES} ${OpenCV_LIBS} "-lpopt")
 add_dependencies(navigate jackal_nav_generate_messages_cpp)
 
 add_executable(grab_frames src/obstacle_avoidance/grab_frames.cpp)
-target_link_libraries(grab_frames ${catkin_LIBRARIES} ${OpenCV_LIBS})
+target_link_libraries(grab_frames ${catkin_LIBRARIES} ${OpenCV_LIBS} "-lpopt")
 add_dependencies(grab_frames jackal_nav_generate_messages_cpp)
 
 add_executable(disparity_map src/obstacle_avoidance/disparity_map.cpp)
