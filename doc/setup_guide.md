@@ -18,6 +18,8 @@ The password is `clearpath`.
 
 Clone and make the repository in the Intel NUC too. The NUC does all the processing for the obstacle avoidance. You also need to setup remote ROS between the NUC and the Jackal's computer. There is a wiki on the Cobot project page in redmine on how to do this.
 
+**Note:** Switch to the `kowa-lens` branch on the repository if you're using the KOWA lenses.
+
 ### Step 2: Start the cameras
 
 SSH into the Jackal to start the cameras.
@@ -53,7 +55,22 @@ The camera topics are:
 
 Make sure the cameras are actually grabbing frames by running `rostopic echo` on these topics.
 
-### Step 3: Generate disparity map, point cloud, and obstacle scan
+### Step 3: Camera Calibration
+
+Grab images of the checkerboard to calibrate the cameras on the Jackal. Run the following node:
+
+```bash
+$ rosrun jackal_nav grab_frames [options]
+```
+
+options:
+
+- `-w=width`, specify image width
+- `-h=height`, specify image height
+
+Once you have the calibration images saved, use [this tool](https://github.com/sourishg/stereo-calibration) to calibrate for the intrinsics and the extrinsics. The calibration file is saved as `src/calibration/stereo_calib.yml`. The `XR` and `XT` matrices in the calibration file are the transformation matrices from the camera frame to the robot frame. You can decompose `XR` into it's Euler angles - see this [link](http://nghiaho.com/?page_id=846).
+
+### Step 4: Generate disparity map, point cloud, and obstacle scan
 
 Once the camera topics are being published, generate a point cloud and an obstacle scan using this command.
 
@@ -69,7 +86,7 @@ options:
 - `-l -p=path/to/pcl/time/file`, specify the file where time taken to generate a point cloud is stored for each frame
 - `-l -s=path/to/scan/time/file`, specify the file where time taken to scan for obstacles is stored for each frame
 
-### Step 4: Safe navigation
+### Step 5: Safe navigation
 
 Now the run the `navigate` node for safe navigation.
 
