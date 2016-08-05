@@ -5,7 +5,7 @@
 Setup a static IP connection between your computer and the Jackal. If you're doing this over ethernet, set your IP to `192.168.1.X` where `X` can be anything except `11`. The Jackal's IP address is `192.168.11`. Then do the following:
 
 ```bash
-ssh administrator@192.168.1.11
+$ ssh administrator@192.168.1.11
 ```
 
 The password is `clearpath`.
@@ -38,7 +38,13 @@ If this fails, just repeat the above steps till it works! The camera topics are:
 
 #### PointGrey IMX249
 
-The launch files for the PointGrey cameras are stored in the `pointgrey_camera_driver` package. `roscd` into the package if you want to edit the launch files.
+The launch files for the PointGrey cameras are stored in the `pointgrey_camera_driver` package. `roscd` into the package if you want to edit the launch files. Check the ID of the cameras by running
+
+```bash
+$ rosrun pointgrey_camera_driver list_cameras
+```
+
+If you have the launch files ready, then start the cameras by running
 
 ```bash
 $ roslaunch pointgrey_camera_driver camera_left.launch
@@ -75,7 +81,7 @@ Once you have the calibration images saved, use [this tool](https://github.com/s
 Once the camera topics are being published, generate a point cloud and an obstacle scan using this command.
 
 ```bash
-rosrun jackal_nav point_cloud -c=path/to/calib/file [options]
+$ rosrun jackal_nav point_cloud -c=path/to/calib/file [options]
 ```
 
 options:
@@ -91,7 +97,7 @@ options:
 Now the run the `navigate` node for safe navigation.
 
 ```bash
-rosrun jackal_nav navigate [options]
+$ rosrun jackal_nav navigate [options]
 ```
 
 options:
