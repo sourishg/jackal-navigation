@@ -38,7 +38,13 @@ If this fails, just repeat the above steps till it works! The camera topics are:
 
 #### PointGrey IMX249
 
-The launch files for the PointGrey cameras are stored in the `pointgrey_camera_driver` package. `roscd` into the package if you want to edit the launch files.
+The launch files for the PointGrey cameras are stored in the `pointgrey_camera_driver` package. `roscd` into the package if you want to edit the launch files. Check the ID of the cameras by running
+
+```bash
+$ rosrun pointgrey_camera_driver list_cameras
+```
+
+If you have the launch files ready, then start the cameras by running
 
 ```bash
 $ roslaunch pointgrey_camera_driver camera_left.launch
