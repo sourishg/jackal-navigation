@@ -42,11 +42,11 @@ jackal_nav::JackalTimeLog time_log;
 
 Size rawimsize;
 int im_width = 320;
-int im_height = 180;
+int im_height = 200;
 int crop_offset_x = 0; // starting x coordinate of disparity map
 int crop_offset_y = 0; // starting y coordinate of disparity map
 int crop_im_width = 320; // width of disparity map
-int crop_im_height = 180; // height of disparity map
+int crop_im_height = 200; // height of disparity map
 const int INF = 1e9;
 uint32_t seq = 0;
 
@@ -335,6 +335,9 @@ void publishPointCloud(Mat& dmap, uint32_t seq) {
           blue = leftim_res.at<Vec3b>(j,i)[0];
         }
       }
+      red = leftim_res.at<Vec3b>(j,i)[2];
+      green = leftim_res.at<Vec3b>(j,i)[1];
+      blue = leftim_res.at<Vec3b>(j,i)[0];
       int32_t rgb = (red << 16 | green << 8 | blue);
       ch.values.push_back(*reinterpret_cast<float*>(&rgb));
     }
@@ -519,8 +522,8 @@ int main(int argc, char **argv)
     cacheDisparityValues();
 
   // subscribe to camera topics
-  ros::Subscriber subl = nh.subscribe("/webcam/left/image_raw/compressed", 1, imageCallbackLeft);
-  ros::Subscriber subr = nh.subscribe("/webcam/right/image_raw/compressed", 1, imageCallbackRight);
+  ros::Subscriber subl = nh.subscribe("/camera_left/image_color/compressed", 1, imageCallbackLeft);
+  ros::Subscriber subr = nh.subscribe("/camera_right/image_color/compressed", 1, imageCallbackRight);
 
   ros::spin();
 }

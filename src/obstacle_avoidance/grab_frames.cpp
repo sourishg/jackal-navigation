@@ -10,8 +10,8 @@ using namespace cv;
 Mat imgL, imgR, imgL_resized, imgR_resized;
 int save_count = 1;
 
-int im_width = 320;
-int im_height = 180;
+int im_width = 640;
+int im_height = 400;
 
 void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
 {
@@ -82,8 +82,8 @@ int main(int argc, char **argv)
   cv::startWindowThread();
   imgL = Mat(im_height, im_width, CV_8UC3, Scalar(0,0,0));
   imgR = Mat(im_height, im_width, CV_8UC3, Scalar(0,0,0));
-  ros::Subscriber subl = nh.subscribe("/webcam/left/image_raw/compressed", 1, imageCallbackLeft);
-  ros::Subscriber subr = nh.subscribe("/webcam/right/image_raw/compressed", 1, imageCallbackRight);
+  ros::Subscriber subl = nh.subscribe("/camera_left/image_color/compressed", 1, imageCallbackLeft);
+  ros::Subscriber subr = nh.subscribe("/camera_right/image_color/compressed", 1, imageCallbackRight);
   
   ros::spin();
   cv::destroyWindow("view_left");
