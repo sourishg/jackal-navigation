@@ -27,3 +27,4 @@ Compiled Object files
 *.out
 *.app
 data/
+*.kdev*
