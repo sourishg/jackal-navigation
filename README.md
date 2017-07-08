@@ -51,7 +51,6 @@ Use the following combos on the DualShock controller to switch between modes
 
 - `R1 + R2`: Use left stick to drive. The jackal stops in front of obstacles.
 - `Hold X`: Let the Jackal move in the direction it's facing, avoiding obstacles in its way.
-- `Hold triangle`: Auto waypoint based navigation
 
 ### Disparity Maps
 

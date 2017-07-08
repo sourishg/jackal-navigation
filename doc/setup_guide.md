@@ -16,9 +16,7 @@ The password is `clearpath`.
 ~/catkin_ws$ catkin_make
 ```
 
-Clone and make the repository in the Intel NUC too. The NUC does all the processing for the obstacle avoidance. You also need to setup remote ROS between the NUC and the Jackal's computer. There is a wiki on the Cobot project page in redmine on how to do this.
-
-**Note:** Switch to the `kowa-lens` branch on the repository if you're using the KOWA lenses.
+Clone and make the repository in the Intel NUC. The NUC does all the processing for obstacle avoidance. You need to setup remote ROS between the NUC and the Jackal's computer. Make sure you set up a two-way connection (check this by pinging one computer from another). `rostopic echo` to see if you can receive the topics published by the Jackal on the NUC (or your computer).
 
 ### Step 2: Start the cameras
 
@@ -74,9 +72,17 @@ options:
 - `-w=width`, specify image width
 - `-h=height`, specify image height
 
-Once you have the calibration images saved, use [this tool](https://github.com/sourishg/stereo-calibration) to calibrate for the intrinsics and the extrinsics. The calibration file is saved as `src/calibration/stereo_calib.yml`. The `XR` and `XT` matrices in the calibration file are the transformation matrices from the camera frame to the robot frame. You can decompose `XR` into it's Euler angles - see this [link](http://nghiaho.com/?page_id=846).
+Once you have the calibration images saved, use [this tool](https://github.com/sourishg/stereo-calibration) to calibrate for the intrinsics and the extrinsics. An example calibration file is saved in `calibration/amrl_jackal_webcam_stereo.yml`. The `XR` and `XT` matrices in the calibration file are the transformation matrices from the camera frame to the robot frame. 
 
-Make sure you change your `im_width` and `im_height` values based on your calibration resolution.
+Initially after stereo calibration (using the tool mentioned above) you will not have the `XR` and `XT` matrices in your calibration file. Just manually add the two matrices and set them to the identity and zero matrices respectively. Also, you only need the following matrices in your calibration file: `K1`, `K2`, `D1`, `D2`, `R`, `T`, `XR`, and `XT`.
+
+Now you need to perform the extrinsic calibration between the rover reference frame and the left camera reference frame to detect the ground plane. To do this, run the `point_cloud` binary with the `-g` and `-m` flag (described below). Then run
+
+```bash
+$ rosrun rqt_reconfigure rqt_reconfigure
+```
+
+Tweak the rotation and translation matrix parameters and see the observed point cloud in an `rviz` window. Visually align the point cloud so that the ground plane aligns with rviz's ground plane. After this is done, copy the transformation matrices that are printed on the terminal running the `point_cloud` binary to the calibration file.
 
 ### Step 4: Generate disparity map, point cloud, and obstacle scan
 
@@ -90,9 +96,10 @@ options:
 - `-h=height`, specify height of the left and right image from the top, so that only a partial disparity map can be computed
 - `-g`, generates point cloud before obstacle scan
 - `-l`, log time taken for each step
-- `-l -d=path/to/dmap/time/file`, specify the file where time taken by disparity map is stored for each frame
-- `-l -p=path/to/pcl/time/file`, specify the file where time taken to generate a point cloud is stored for each frame
-- `-l -s=path/to/scan/time/file`, specify the file where time taken to scan for obstacles is stored for each frame
+- `-d=path/to/dmap/time/file`, specify the file where time taken by disparity map is stored for each frame
+- `-p=path/to/pcl/time/file`, specify the file where time taken to generate a point cloud is stored for each frame
+- `-s=path/to/scan/time/file`, specify the file where time taken to scan for obstacles is stored for each frame
+- `-m`, flag to perform extrinsic calibration between the rover reference frame and the left camera reference frame.
 
 ### Step 5: Safe navigation
 
@@ -105,6 +112,7 @@ $ rosrun jackal_nav navigate [options]
 options:
 - `-f=max_forward_vel`, specify maximum forward velocity
 - `-l=laser_scan_threshold`, specify a threshold for the number of laser points in front of the robot which determines whether there is an obstacle or not
+- `-c=forward_clearance`, the forward clearance for the robot (*e.g.* 1m forward clearance will make the robot stop if there's an obstacle within 1m)
 
 ### Drive modes
 

@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   cv_bridge
   uvc_camera
+  dynamic_reconfigure
   message_generation
 )
 
@@ -90,10 +91,9 @@ generate_messages(
 ##     and list every .cfg file to be processed
 
 ## Generate dynamic reconfigure parameters in the 'cfg' folder
-# generate_dynamic_reconfigure_options(
-#   cfg/DynReconf1.cfg
-#   cfg/DynReconf2.cfg
-# )
+generate_dynamic_reconfigure_options(
+  cfg/CamToRobotCalibParams.cfg
+)
 
 ###################################
 ## catkin specific configuration ##
@@ -219,3 +219,7 @@ add_dependencies(disparity_map jackal_nav_generate_messages_cpp)
 add_executable(point_cloud ${LIBELAS_SRC_FILES} src/obstacle_avoidance/point_cloud.cpp)
 target_link_libraries(point_cloud ${catkin_LIBRARIES} ${OpenCV_LIBS} "-lpopt")
 add_dependencies(point_cloud jackal_nav_generate_messages_cpp)
+
+add_executable(conf_checks src/obstacle_avoidance/confidence_checks.cpp)
+target_link_libraries(conf_checks ${catkin_LIBRARIES} ${OpenCV_LIBS} "-lpopt")
+add_dependencies(conf_checks jackal_nav_generate_messages_cpp)

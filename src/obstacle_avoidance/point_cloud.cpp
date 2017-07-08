@@ -12,6 +12,8 @@
 #include <sensor_msgs/CompressedImage.h>
 #include <geometry_msgs/Point32.h>
 #include <visualization_msgs/Marker.h>
+#include <dynamic_reconfigure/server.h>
+#include <jackal_nav/CamToRobotCalibParamsConfig.h>
 #include "jackal_nav/JackalTimeLog.h"
 #include <ctime>
 #include <fstream>
@@ -32,6 +34,9 @@ Mat D1, D2;
 Mat XR, XT, V, pos;
 Mat lmapx, lmapy, rmapx, rmapy;
 
+jackal_nav::CamToRobotCalibParamsConfig config;
+Size calib_im_size = Size(640, 360);
+
 image_transport::Publisher disp_pub;
 ros::Publisher pcl_publisher;
 ros::Publisher obstacle_scan_publisher;
@@ -39,14 +44,14 @@ ros::Publisher marker_pub;
 ros::Publisher time_log_publisher;
 
 jackal_nav::JackalTimeLog time_log;
-
+// kitti 490x180
 Size rawimsize;
-int im_width = 320; // change image width and height according to your calibration
-int im_height = 200;
+int im_width = 320; // output image width and height
+int im_height = 180;
 int crop_offset_x = 0; // starting x coordinate of disparity map
 int crop_offset_y = 0; // starting y coordinate of disparity map
 int crop_im_width = 320; // width of disparity map
-int crop_im_height = 200; // height of disparity map
+int crop_im_height = 180; // height of disparity map
 const int INF = 1e9;
 uint32_t seq = 0;
 
@@ -55,9 +60,10 @@ char* dmap_time_file;
 char* pcl_time_file;
 char* obst_scan_time_file;
 bool logging = false;
-bool gen_pcl = false;
+int calib_robot_to_cam = 0;
+int gen_pcl = 0;
 
-const double GP_HEIGHT_THRESH = 0.07; // group plane height threshold
+const double GP_HEIGHT_THRESH = 0.05; // group plane height threshold
 const double GP_ANGLE_THRESH = 4. * 3.1415 / 180.; // ground plane angular height threshold
 const double GP_DIST_THRESH = 1.0; // starting distance for angular threshold
 const double ROBOT_HEIGHT = 0.34;
@@ -66,6 +72,33 @@ bool inImg(int x, int y) {
   // check if pixel lies inside image
   if (x >= 0 && x < leftim_res.cols && y >= 0 && y < leftim_res.rows)
     return true;
+}
+
+Mat composeRotationCamToRobot(float x, float y, float z) {
+  Mat X = Mat::eye(3, 3, CV_64FC1);
+  Mat Y = Mat::eye(3, 3, CV_64FC1);
+  Mat Z = Mat::eye(3, 3, CV_64FC1);
+  
+  X.at<double>(1,1) = cos(x);
+  X.at<double>(1,2) = -sin(x);
+  X.at<double>(2,1) = sin(x);
+  X.at<double>(2,2) = cos(x);
+
+  Y.at<double>(0,0) = cos(y);
+  Y.at<double>(0,2) = sin(y);
+  Y.at<double>(2,0) = -sin(y);
+  Y.at<double>(2,2) = cos(y);
+
+  Z.at<double>(0,0) = cos(z);
+  Z.at<double>(0,1) = -sin(z);
+  Z.at<double>(1,0) = sin(z);
+  Z.at<double>(1,1) = cos(z);
+  
+  return Z*Y*X;
+}
+
+Mat composeTranslationCamToRobot(float x, float y, float z) {
+  return (Mat_<double>(3,1) << x, y, z);
 }
 
 void cacheDisparityValues() {
@@ -269,7 +302,13 @@ void publishPointCloud(Mat& dmap, uint32_t seq) {
     publishObstacleScan(dmap, seq);
     return;
   }
-
+  if (calib_robot_to_cam) {
+    XR = composeRotationCamToRobot(config.PHI_X,config.PHI_Y,config.PHI_Z);
+    XT = 
+composeTranslationCamToRobot(config.TRANS_X,config.TRANS_Y,config.TRANS_Z);
+    cout << "Rotation matrix: " << XR << endl;
+    cout << "Translation matrix: " << XT << endl;
+  }
   clock_t begin = clock();
 
   vector< Point3d > points;
@@ -303,9 +342,11 @@ void publishPointCloud(Mat& dmap, uint32_t seq) {
       // transform 3D point from camera frame to robot frame
       Mat point3d_robot = XR * point3d_cam + XT;
       // ignore points below the ground plane
+      /*
       if (point3d_robot.at<double>(2,0) < 0.) {
         continue;
       }
+      */
       points.push_back(Point3d(point3d_robot));
       geometry_msgs::Point32 pt;
       pt.x = point3d_robot.at<double>(0,0);
@@ -363,15 +404,10 @@ void publishPointCloud(Mat& dmap, uint32_t seq) {
 }
 
 Mat generateDisparityMap(Mat& left, Mat& right) {
-  Mat lb, rb;
   if (left.empty() || right.empty()) 
     return left;
-
-  // convert images to grayscale
-  cvtColor(left, lb, CV_BGR2GRAY);
-  cvtColor(right, rb, CV_BGR2GRAY);
-
-  const Size imsize = lb.size();
+  
+  const Size imsize = left.size();
   const int32_t dims[3] = {imsize.width,imsize.height,imsize.width}; // bytes per line = width
 
   Mat leftdpf = Mat::zeros(imsize, CV_32F);
@@ -380,20 +416,8 @@ Mat generateDisparityMap(Mat& left, Mat& right) {
   Elas::parameters param;
   param.postprocess_only_left = true;
   Elas elas(param);
-  elas.process(lb.data,rb.data,leftdpf.ptr<float>(0),rightdpf.ptr<float>(0),dims);
+  elas.process(left.data,right.data,leftdpf.ptr<float>(0),rightdpf.ptr<float>(0),dims);
 
-  // normalize disparity values between 0 and 255
-  int max_disp = -1;
-  for (int i = 0; i < imsize.width; i++) {
-    for (int j = 0; j < imsize.height; j++) {
-      if (leftdpf.at<uchar>(j,i) > max_disp) max_disp = leftdpf.at<uchar>(j,i);
-    }
-  }
-  for (int i = 0; i < imsize.width; i++) {
-    for (int j = 0; j < imsize.height; j++) {
-      leftdpf.at<uchar>(j,i) = (int)max(255.0*(float)leftdpf.at<uchar>(j,i)/max_disp,0.0);
-    }
-  }
   Mat show = Mat(crop_im_height, crop_im_width, CV_8UC1, Scalar(0));
   leftdpf.convertTo(show, CV_8U, 1.);
   if (!show.empty()) {
@@ -408,13 +432,17 @@ void imageCallbackLeft(const sensor_msgs::CompressedImageConstPtr& msg)
 {
   try
   {
-    //Mat tmp = cv_bridge::toCvShare(msg, "mono8")->image;
-    Mat tmp = cv::imdecode(cv::Mat(msg->data), CV_LOAD_IMAGE_UNCHANGED);
-    if (tmp.empty()) return;
-    resize(tmp, img1, rawimsize);
-    cv::remap(img1, leftim, lmapx, lmapy, cv::INTER_LINEAR);
+    //Mat tmp = cv_bridge::toCvShare(msg, "bgr8")->image;
+    Mat tmp = cv::imdecode(cv::Mat(msg->data), CV_LOAD_IMAGE_GRAYSCALE);
+    if (tmp.empty())
+      return;
+    //resize(tmp, img1, rawimsize);
+    cv::remap(tmp, leftim, lmapx, lmapy, cv::INTER_LINEAR);
+    //leftim = tmp.clone();
     leftim_res = leftim(Rect(crop_offset_x, crop_offset_y, crop_im_width, crop_im_height));
-    
+    //imshow("left",leftim_res);
+    //waitKey(30);
+      
     clock_t begin = clock();
 
     Mat dmap = generateDisparityMap(leftim_res, rightim_res);
@@ -446,16 +474,24 @@ void imageCallbackRight(const sensor_msgs::CompressedImageConstPtr& msg)
 {
   try
   {
-    //Mat tmp = cv_bridge::toCvShare(msg, "mono8")->image;
-    Mat tmp = cv::imdecode(cv::Mat(msg->data), CV_LOAD_IMAGE_UNCHANGED);
+    //Mat tmp = cv_bridge::toCvShare(msg, "bgr8")->image;
+    Mat tmp = cv::imdecode(cv::Mat(msg->data), CV_LOAD_IMAGE_GRAYSCALE);
     if (tmp.empty()) return;
-    resize(tmp, img2, rawimsize);
-    cv::remap(img2, rightim, rmapx, rmapy, cv::INTER_LINEAR);
+    //resize(tmp, img2, rawimsize);
+    cv::remap(tmp, rightim, rmapx, rmapy, cv::INTER_LINEAR);
+    //rightim = tmp.clone();
     rightim_res = rightim(Rect(crop_offset_x, crop_offset_y, crop_im_width, crop_im_height));
+    //imshow("right", rightim_res);
+    //waitKey(30);
   }
   catch (cv_bridge::Exception& e)
   {
   }
+}
+
+void paramsCallback(jackal_nav::CamToRobotCalibParamsConfig &conf, uint32_t 
+level) {
+  config = conf;
 }
 
 int main(int argc, char **argv)
@@ -468,6 +504,8 @@ int main(int argc, char **argv)
     { "calib-file",'c',POPT_ARG_STRING,&calib_file,0,"Stereo calibration file","STR" },
     { "logging",'l',POPT_ARG_NONE,&logging,0,"Log pipeline time","NONE" },
     { "gen-pcl",'g',POPT_ARG_NONE,&gen_pcl,0,"Generate PCL","NONE" },
+    { "calib-extrinsic",'m',POPT_ARG_NONE,&calib_robot_to_cam,0,
+"Calibrate extrinsics between left camera and robot","NONE" },
     { "dmap-file",'d',POPT_ARG_STRING,&dmap_time_file,0,"DMAP time file","STR" },
     { "pcl-file",'p',POPT_ARG_STRING,&pcl_time_file,0,"PCL time file","STR" },
     { "scan-file",'s',POPT_ARG_STRING,&obst_scan_time_file,0,"Scan time file","STR" },
@@ -488,7 +526,7 @@ int main(int argc, char **argv)
     // publishes time taken by each step in the pipeline
     time_log_publisher = nh.advertise<jackal_nav::JackalTimeLog>("/jackal/time_log", 1);
   }
-  
+
   cv::FileStorage fs1(calib_file, cv::FileStorage::READ);
   fs1["K1"] >> K1; // left camera matrix
   fs1["K2"] >> K2; // right camera matrix
@@ -496,34 +534,40 @@ int main(int argc, char **argv)
   fs1["D2"] >> D2; // right camera distortion coeffs
   fs1["R"] >> R; // rotation from left to right camera
   fs1["T"] >> T; // translation from left to right camera
-
-  fs1["R1"] >> R1; // rectification transfrom for left camera
-  fs1["R2"] >> R2; // rectification transform for right camera
-  fs1["P1"] >> P1; // projection matrix in rectified coordinate system for left camera
-  fs1["P2"] >> P2; // projection matrix in rectified coordinate system for right camera
-  fs1["Q"] >> Q; // depth to disparity mapping matrix
   fs1["XR"] >> XR; // rotation from camera frame to robot frame
   fs1["XT"] >> XT; // translation from camera frame to robot frame
+
+  rawimsize = Size(im_width, im_height);
+  Rect validRoi[2];
+  cout << "starting rectification" << endl;
+  stereoRectify(K1, D1, K2, D2, calib_im_size, R, Mat(T), R1, R2, P1, P2, Q, 
+                CV_CALIB_ZERO_DISPARITY, 0, rawimsize, &validRoi[0], &validRoi[1]);
+  cout << "done rectification" << endl;
 
   V = Mat(4, 1, CV_64FC1);
   pos = Mat(4, 1, CV_64FC1);
 
-  rawimsize = Size(im_width, im_height);
-  img1 = Mat(rawimsize, CV_8UC3, Scalar(0,0,0));
-  img2 = Mat(rawimsize, CV_8UC3, Scalar(0,0,0));
   rightim = Mat(rawimsize, CV_8UC3, Scalar(0,0,0));
 
   // undistort and rectify both images
-  cv::initUndistortRectifyMap(K1, D1, R1, P1, img1.size(), CV_32F, lmapx, lmapy);
-  cv::initUndistortRectifyMap(K2, D2, R2, P2, img2.size(), CV_32F, rmapx, rmapy);
+  cv::initUndistortRectifyMap(K1, D1, R1, P1, rawimsize, CV_32F, lmapx, lmapy);
+  cv::initUndistortRectifyMap(K2, D2, R2, P2, rawimsize, CV_32F, rmapx, rmapy);
 
   // if not generating full point cloud, cache disparity values
   if (!gen_pcl)
     cacheDisparityValues();
-
+  
+  if (calib_robot_to_cam) {
+    dynamic_reconfigure::Server<jackal_nav::CamToRobotCalibParamsConfig> server;
+    dynamic_reconfigure::Server<jackal_nav::CamToRobotCalibParamsConfig>::
+CallbackType f;
+    f = boost::bind(&paramsCallback, _1, _2);
+    server.setCallback(f);
+  }
+  
   // subscribe to camera topics
-  ros::Subscriber subl = nh.subscribe("/camera_left/image_color/compressed", 1, imageCallbackLeft);
-  ros::Subscriber subr = nh.subscribe("/camera_right/image_color/compressed", 1, imageCallbackRight);
+  ros::Subscriber subl = nh.subscribe("/webcam/left/image_raw/compressed", 1, imageCallbackLeft);
+  ros::Subscriber subr = nh.subscribe("/webcam/right/image_raw/compressed", 1, imageCallbackRight);
 
   ros::spin();
 }

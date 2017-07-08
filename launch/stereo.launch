@@ -3,12 +3,12 @@
   <node pkg="uvc_camera" type="uvc_stereo_node" name="uvc_camera_stereo">
     <param name="width" type="int" value="640" />
     <param name="height" type="int" value="360" />
-    <param name="fps" type="int" value="30" />
+    <param name="fps" type="int" value="60" />
     <param name="frame_id" type="string" value="/stereo_frame" />
     <param name="auto_focus" type="bool" value="False" />
-    <param name="focus_absolute" type="int" value="10" />
-    <param name="left/device" type="string" value="/dev/video0" />
-    <param name="right/device" type="string" value="/dev/video1" />
+    <param name="focus_absolute" type="int" value="5" />
+    <param name="left/device" type="string" value="/dev/video1" />
+    <param name="right/device" type="string" value="/dev/video2" />
   </node>
 </group>
 </launch>

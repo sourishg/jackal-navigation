@@ -34,7 +34,7 @@ float max_forward_vel = 0.6; // maximum forward velocity
 double max_rot_vel = 1.3; // maximum rotational velocity
 
 // declare clearances in front and side of the robot
-double clear_front = 0.24 + 1.5;
+double clear_front = 0.24 + 0.8;
 double clear_side = 0.3;
 
 // min number of laser points in front of the clearance of the robot
@@ -419,12 +419,11 @@ int main(int argc, char** argv) {
   ros::init(argc, argv, "jackal_navigation");
   ros::NodeHandle nh;
 
-  char *waypoint_file = "";
-
   static struct poptOption options[] = {
-    { "waypoint-file",'w',POPT_ARG_STRING,&waypoint_file,0,"Waypoints text file","STR" },
     { "max-forward-vel",'f',POPT_ARG_FLOAT,&max_forward_vel,0,"Max forward velocity","NUM" },
     { "laser-thresh",'l',POPT_ARG_INT,&laser_pt_thresh,0,"Threshold for obstacle scan","NUM" },
+    { "forward-clearance",'c',POPT_ARG_FLOAT,&clear_front,0,
+      "Forward clearance range","NUM" },
     POPT_AUTOHELP
     { NULL, 0, 0, NULL, 0, NULL, NULL }
   };
@@ -432,11 +431,7 @@ int main(int argc, char** argv) {
   POpt popt(NULL, argc, argv, options, 0);
   int c;
   while((c = popt.getNextOpt()) >= 0) {}
-
-  if (strlen(waypoint_file) != 0) {
-    read_waypoints(waypoint_file);
-  }
-
+  
   ros::Subscriber sub_laser_scan = nh.subscribe("/webcam/left/obstacle_scan", 1, laserScanCallback);
   ros::Subscriber sub_safe_drive = nh.subscribe("/bluetooth_teleop/joy", 1, safeNavigate);
   ros::Subscriber sub_cur_pose = nh.subscribe("/jackal/gps_estimate", 1, getCurrentPose);
