@@ -557,13 +557,11 @@ int main(int argc, char **argv)
   if (!gen_pcl)
     cacheDisparityValues();
   
-  if (calib_robot_to_cam) {
-    dynamic_reconfigure::Server<jackal_nav::CamToRobotCalibParamsConfig> server;
-    dynamic_reconfigure::Server<jackal_nav::CamToRobotCalibParamsConfig>::
+  dynamic_reconfigure::Server<jackal_nav::CamToRobotCalibParamsConfig> server;
+  dynamic_reconfigure::Server<jackal_nav::CamToRobotCalibParamsConfig>::
 CallbackType f;
-    f = boost::bind(&paramsCallback, _1, _2);
-    server.setCallback(f);
-  }
+  f = boost::bind(&paramsCallback, _1, _2);
+  server.setCallback(f);
   
   // subscribe to camera topics
   ros::Subscriber subl = nh.subscribe("/webcam/left/image_raw/compressed", 1, imageCallbackLeft);
